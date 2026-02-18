@@ -1,18 +1,37 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-# Standard Postgres URL format: postgresql://username:password@localhost/dbname
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:vivek123@localhost/study_db"
+load_dotenv()
 
-# create_engine handles the string automatically
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL must be set in environment variables")
 
-Base = declarative_base()
 
-# Dependency for FastAPI routes
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    future=True,
+)
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
 def get_db():
     db = SessionLocal()
     try:

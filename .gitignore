@@ -1,91 +1,61 @@
-
-# OS / System Files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-logs/
-log/
-
-# Environment Variables
 .env
-.env.local
-.env.development
-.env.production
-.env.test
+.env.*
+!.env.example
 
-# Python / FastAPI
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.pkl
 
-# Virtual Environments
 venv/
 .venv/
 env/
 ENV/
 
-# Python build
 build/
 dist/
 *.egg-info/
 .eggs/
 
-# Pytest / Coverage
 .pytest_cache/
 .coverage
 htmlcov/
 
-# MyPy / Ruff
-# Database (local dev)
+.mypy_cache/
+.ruff_cache/
 
 *.sqlite3
 *.db
 
-
-# Node / React
 node_modules/
-npm-cache/
+.npm/
 .yarn/
 .pnpm-store/
 .pnp.*
+.vite/
 .next/
 out/
-dist/
-build/
 .cache/
-
-# React/Vite
-
-.vite/
 *.tsbuildinfo
 
-
-# IDE / Editor Config
+*.log
+logs/
+log/
 
 .vscode/
 .idea/
 *.iml
 
-
-*.lnk
-
-
-uploads/
-media/
-
-
 *.pem
 *.key
 *.crt
 
+uploads/
+media/
 
 docker-compose.override.yml

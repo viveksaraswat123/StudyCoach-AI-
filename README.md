@@ -1,186 +1,326 @@
-# 📚 StudyCoach AI - AI-Powered Study Tracking & Assessment Platform
+# 📚 StudyCoach AI  
+### AI-Powered Study Tracking & Assessment Platform
 
-StudyCoach AI is a web-based platform that helps students stay consistent, track their study hours, and validate learning through AI-generated topic-wise tests.
+StudyCoach AI is a full-stack web platform designed to help students build consistency, validate learning, and improve performance using AI-generated assessments.
 
-Users log what they studied and for how long, and the system generates a Question–Answer test **only when the user clicks _"Task Completed"_ or _"Ready for Test"_**.  
-The platform then evaluates the answers (typed or spoken), provides feedback, and tracks progress using dashboards, streaks, points, and badges.
+Instead of only tracking study time, StudyCoach AI ensures that learning is tested, evaluated, and improved through structured topic-based assessments and smart analytics.
 
 ---
 
-## 🚀 Key Features
+## 🚀 Core Features
 
-### ✅ Study Tracking
-- Log **daily study hours**
-- Log **topics studied**
-- Track logs as **In Progress → Completed**
-- Generate test only after **Ready for Test** click
+### 📖 Study Tracking
+- Log daily study hours
+- Log topics studied
+- Mark tasks as **In Progress → Completed**
+- Generate test only after clicking **Ready for Test**
 
-### ✅ AI-Powered Q&A Sessions
-- Automatically generates topic-based questions like:
-  - MCQs
-  - Short answers
-  - Concept-based questions
-  - Viva / interview-style questions
-  - Scenario-based questions
+### 🤖 AI-Powered Assessment
+- Automatically generates topic-based questions
+- Difficulty progression (basic → advanced)
+- Question types:
+  - Conceptual
+  - Application-based
+  - Analytical
+  - Scenario-based
+  - Viva-style
 
-### ✅ Answering Modes
-- ✍️ **Text-based answers**
-- 🎙️ **Voice answers (Speech → Text)** *(planned feature / optional)*  
-- Supports answering in **any language** (English / Hindi / Hinglish etc.)
+### ✍️ Answer Submission
+- Text-based answers (current)
+- Voice-based answers (planned)
+- Multi-language support (English / Hindi / Hinglish)
 
-### ✅ Smart Evaluation + Feedback
-- Score for each question
-- Accuracy %
-- Correct answer + explanation
-- Improvement suggestions
-- Weak topics detection
+### 📊 Smart Evaluation
+- Score per question
+- Accuracy percentage
+- Correct answers with explanations
+- Feedback and improvement suggestions
+- Weak topic detection
 
-### ✅ Dashboard Analytics
+### 📈 Dashboard & Analytics
 - Total study hours
-- Daily / weekly study trends
-- Consistency streak tracking
-- Test performance analytics
-- Accuracy improvement trends
+- Study streak (current & best)
+- Weekly trends
+- Accuracy trends
+- Test history
+- Improvement tracking
 
-### ✅ Gamification (Motivation System)
+### 🏆 Gamification System
 - Consistency points
 - Badges for milestones
-- Levels based on progress
+- Progress levels
 
 ---
 
-## 🧠 Why This Project?
+## 🧠 Problem It Solves
 
-Most study apps only track time. StudyCoach AI does more:
+Most study apps only track time.
 
-✅ Tracks study habits  
-✅ Generates real topic-based Q&A  
-✅ Evaluates learning with feedback  
-✅ Builds consistency with streaks + badges  
+StudyCoach AI:
+- Tracks study behavior
+- Tests understanding
+- Evaluates answers
+- Provides feedback
+- Builds long-term consistency
 
-This makes it a complete **study + assessment + progress tracking system**.
+It combines:
+**Study Tracking + AI Assessment + Performance Analytics**
+
+---
+
+## 🏗️ Tech Stack
+
+### Backend
+- FastAPI
+- SQLAlchemy
+- PostgreSQL
+- JWT Authentication
+- bcrypt password hashing
+
+### Frontend
+- React.js
+- Tailwind CSS / Bootstrap
+
+### AI Integration
+- LLM API (Gemini / OpenAI compatible)
+
+### Optional
+- Web Speech API (Voice input)
+
+---
+
+## 🗂️ Project Structure
+
+"""
+studycoach-ai/
+│
+├── app/
+│ ├── main.py
+│ ├── models.py
+│ ├── schemas.py
+│ ├── auth.py
+│ ├── database.py
+│ ├── ai_service.py
+│
+├── studycoach-frontend/
+│
+├── .env
+├── requirements.txt
+├── .gitignore
+└── README.md
+"""
+
+
+---
+
+## 🗃️ Database Design
+
+### Users
+- id
+- email
+- password_hash
+- created_at
+
+### StudyLogs
+- id
+- user_id
+- topic
+- hours
+- study_date
+- status
+- completed_at
+
+### TestSessions
+- id
+- user_id
+- topic
+- difficulty
+- created_at
+
+### Questions
+- id
+- session_id
+- question_text
+- question_type
+
+### Attempts
+- id
+- user_id
+- session_id
+- question_id
+- answer_text
+- score
+- feedback
+
+### Badges
+- id
+- title
+- criteria
+
+### UserBadges
+- user_id
+- badge_id
+- earned_at
+
+---
+
+## 🔐 Authentication
+
+- JWT-based authentication
+- Token expiration handling
+- Secure password hashing using bcrypt
+- Protected routes using OAuth2 Bearer token
 
 ---
 
 ## 📌 Workflow
 
-### 1) Log Study
-User enters:
-- Study hours
-- Topic studied
+### 1️⃣ Log Study
+User logs:
+- Topic
+- Hours studied
 
-Saved as: **In Progress**
+Status: **In Progress**
 
-### 2) Complete Study Task
+### 2️⃣ Complete Study
 User clicks:
-✅ **Task Completed** / ✅ **Ready for Test**
+**Ready for Test**
 
 Status becomes: **Completed**
 
-### 3) Generate Test
-System generates a topic-wise test session.
+### 3️⃣ Generate Test
+System generates topic-based assessment.
 
-### 4) Submit Answers
-User answers via:
-- Text (currently)
-- Voice (optional / future)
+### 4️⃣ Submit Answers
+User submits answers (text / voice).
 
-### 5) Evaluation + Dashboard Update
-System evaluates answers and updates:
-- accuracy
-- score history
-- badges
-- streak
-- total hours
+### 5️⃣ Evaluation
+System evaluates and updates:
+- Accuracy
+- Score history
+- Dashboard metrics
+- Streaks
+- Badges
 
 ---
 
-## 🏗️ Tech Stack (Planned)
-
-### Frontend
-- React.js *(recommended)*
-- Tailwind CSS / Bootstrap
-
-### Backend
-- FastAPI *(recommended)* / Django
-
-### Database
-- PostgreSQL / SQLite (for development)
-
-### AI Integration
-- LLM API (OpenAI or any compatible model)
-
-### Voice Input (Optional)
-- Web Speech API (Speech Recognition)
-
----
-
-## 🗃️ Database Design (High-Level)
-
-### Users
-- `id`, `name`, `email`, `password_hash`, `created_at`
-
-### StudyLogs
-- `id`, `user_id`, `topic`, `hours`, `date`, `status`, `completed_at`
-
-### TestSessions
-- `id`, `user_id`, `topic`, `difficulty`, `created_at`
-
-### Questions
-- `id`, `session_id`, `question_text`, `question_type`
-
-### Attempts
-- `id`, `user_id`, `session_id`, `question_id`, `answer_text`, `score`, `feedback`
-
-### Badges
-- `id`, `title`, `criteria`
-
-### UserBadges
-- `user_id`, `badge_id`, `earned_at`
-
----
-
-## 📊 Dashboard Metrics (Planned)
+## 📊 Dashboard Metrics
 
 - Total study hours
-- Study streak (current & best)
-- Weekly consistency graph
+- Study streak
+- Weekly graph
 - Total tests taken
 - Overall accuracy %
 - Improvement trend
-- Weak topics list
-- Badges earned
+- Weak topic list
+- Earned badges
 
 ---
 
-## ✅ Project Roadmap
+## ⚙️ Setup & Installation
 
-### Phase 1 — Core MVP
-- [ ] User authentication
-- [ ] Study logging
-- [ ] Task completion button
-- [ ] Generate Q&A session
-- [ ] Answer submission (text)
-- [ ] Store results
-
-### Phase 2 — Analytics & Gamification
-- [ ] Dashboard graphs
-- [ ] Streak system
-- [ ] Points & badges
-
-### Phase 3 — Voice + Advanced Evaluation
-- [ ] Voice answer support
-- [ ] Multi-language evaluation improvements
-- [ ] Topic strength/weakness detection
-
----
-
-## 🛠️ How to Run (Placeholder)
-This section will be updated once development starts.
+### 1. Clone Repository
 
 ```bash
-# Clone repository
-git clone https://github.com/your-username/studycoach-ai.git
-
-# Go to project folder
+git clone https://github.com/viveksaraswat123/StudyCoach-AI-
 cd studycoach-ai
+
+## ⚙️ Backend Setup
+
+```bash
+python -m venv venv
+```
+
+### Activate Virtual Environment
+
+**Windows**
+```bash
+venv\Scripts\activate
+```
+
+**Mac/Linux**
+```bash
+source venv/bin/activate
+```
+
+### Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Create `.env` File
+
+```
+DATABASE_URL=postgresql://username:password@localhost/study_db
+SECRET_KEY=your_secret_key
+GOOGLE_API_KEY=your_llm_api_key
+```
+
+### Run Server
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Backend runs at:
+
+```
+http://127.0.0.1:8000
+```
+
+Swagger Docs:
+
+```
+http://127.0.0.1:8000/docs
+```
+
+---
+
+## 💻 Frontend Setup
+
+```bash
+cd studycoach-frontend
+npm install
+npm run dev
+```
+
+Frontend runs at:
+
+```
+http://localhost:5173
+```
+
+---
+
+## 🛣️ Roadmap
+
+### Phase 1 — Core MVP
+- User authentication  
+- Study logging  
+- AI question generation  
+- Answer submission  
+- Result storage  
+
+### Phase 2 — Analytics
+- Graphs  
+- Streak system  
+- Accuracy tracking  
+- Badge logic  
+
+### Phase 3 — Advanced AI
+- Voice answer support  
+- Multi-language evaluation  
+- Topic strength detection  
+- Adaptive difficulty  
+
+---
+
+## 🧪 Future Enhancements
+- Refresh token system  
+- Role-based access control  
+- Background AI processing queue  
+- Redis caching  
+- Docker production deployment  
+- CI/CD pipeline  
+- Mobile version  
