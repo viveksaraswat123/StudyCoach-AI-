@@ -1,113 +1,138 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Book, Clock, Calendar, FileText, Smile, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Book, Clock, Calendar, FileText, Zap, CheckCircle, Loader2 } from 'lucide-react';
+import API from '../api/client';
 
 export default function LogSession() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    topic: "",
+    hours: "",
+    study_date: new Date().toISOString().split('T')[0],
+    focus_level: "Medium",
+    notes: ""
+  });
 
   const handleSubmit = async (e) => {
   e.preventDefault();
   setLoading(true);
 
-  const payload = {
-    topic: e.target[0].value,
-    hours: parseFloat(e.target[1].value),
-    study_date: e.target[2].value,
-    focus_level: "High", // You can capture this from state
-    notes: e.target[4].value
-  };
+  const focusMap = {
+  Low: "low",
+  Medium: "medium",
+  High: "high",
+  Peak: "high", // if backend doesn't support peak
+};
 
   try {
-    const response = await fetch('http://localhost:8000/api/logs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    await API.post("/logs", {
+      topic: formData.topic,
+      hours: parseFloat(formData.hours),
+      study_date: formData.study_date,
+      focus_level: focusMap[formData.focus_level],
+      notes: formData.notes,
     });
 
-    if (response.ok) navigate('/dashboard');
+    navigate("/dashboard");
   } catch (error) {
-    console.error("Submission failed", error);
+    console.log("ERROR DATA:", error.response?.data);
   } finally {
     setLoading(false);
   }
 };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen bg-slate-50 py-12 px-4"
-    >
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 py-12 px-6 selection:bg-white selection:text-black">
+      {/* Background Glow */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[30%] h-[30%] bg-blue-500/5 blur-[120px] rounded-full" />
+      </div>
+
+      <div className="max-w-2xl mx-auto relative z-10">
         <button 
           onClick={() => navigate('/dashboard')}
-          className="mb-8 flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition font-medium"
+          className="mb-10 flex items-center gap-2 text-neutral-500 hover:text-white transition-colors group"
         >
-          <ArrowLeft size={20} /> Back to Dashboard
+          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> 
+          Back to Dashboard
         </button>
 
-        <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 p-8 md:p-12 border border-white">
-          <header className="mb-10 text-center">
-            <h1 className="text-3xl font-black tracking-tight mb-2">Log Study Session</h1>
-            <p className="text-slate-500">Record your progress to fuel your AI analytics</p>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-neutral-900/50 backdrop-blur-xl rounded-[2rem] border border-neutral-800 p-8 md:p-12 shadow-2xl"
+        >
+          <header className="mb-12 text-center">
+            <h1 className="text-3xl font-bold tracking-tight mb-3">Sync Session</h1>
+            <p className="text-neutral-500">Your notes will be used to generate your next AI assessment.</p>
           </header>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
             {/* Topic Input */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
-                <Book size={16} className="text-indigo-500" /> Topic Studied
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-neutral-500 ml-1">
+                <Book size={14} /> Topic Studied
               </label>
               <input 
                 required
                 type="text" 
-                placeholder="e.g., Quantum Mechanics, React Hooks..."
-                className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 transition text-lg"
+                value={formData.topic}
+                onChange={(e) => setFormData({...formData, topic: e.target.value})}
+                placeholder="e.g., Computational Neural Networks"
+                className="w-full p-4 bg-neutral-950 border border-neutral-800 rounded-2xl focus:ring-1 focus:ring-white focus:border-white transition-all text-white placeholder:text-neutral-700"
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Hours Input */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
-                  <Clock size={16} className="text-indigo-500" /> Hours Spent
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-neutral-500 ml-1">
+                  <Clock size={14} /> Time Spent (hrs)
                 </label>
                 <input 
                   required
                   type="number" 
                   step="0.5"
+                  value={formData.hours}
+                  onChange={(e) => setFormData({...formData, hours: e.target.value})}
                   placeholder="2.5"
-                  className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 transition"
+                  className="w-full p-4 bg-neutral-950 border border-neutral-800 rounded-2xl focus:ring-1 focus:ring-white transition-all text-white"
                 />
               </div>
 
               {/* Date Input */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
-                  <Calendar size={16} className="text-indigo-500" /> Date
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-neutral-500 ml-1">
+                  <Calendar size={14} /> Session Date
                 </label>
                 <input 
                   required
                   type="date" 
-                  defaultValue={new Date().toISOString().split('T')[0]}
-                  className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 transition"
+                  value={formData.study_date}
+                  onChange={(e) => setFormData({...formData, study_date: e.target.value})}
+                  className="w-full p-4 bg-neutral-950 border border-neutral-800 rounded-2xl focus:ring-1 focus:ring-white transition-all text-white color-scheme-dark"
                 />
               </div>
             </div>
 
-            {/* Focus/Mood Selector */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
-                <Smile size={16} className="text-indigo-500" /> Study Focus Level
+            {/* Focus Selector */}
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-neutral-500 ml-1">
+                <Zap size={14} /> Cognitive Focus Level
               </label>
-              <div className="flex gap-3">
-                {['Low', 'Medium', 'High', 'God Mode'].map((level) => (
+              <div className="flex gap-2 p-1 bg-neutral-950 border border-neutral-800 rounded-2xl">
+                {['Low', 'Medium', 'High', 'Peak'].map((level) => (
                   <button 
                     key={level}
                     type="button"
-                    className="flex-1 py-3 bg-slate-50 rounded-xl text-sm font-bold text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 border-2 border-transparent hover:border-indigo-200 transition"
+                    onClick={() => setFormData({...formData, focus_level: level})}
+                    className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${
+                      formData.focus_level === level 
+                        ? "bg-white text-black shadow-lg" 
+                        : "text-neutral-500 hover:text-neutral-200"
+                    }`}
                   >
                     {level}
                   </button>
@@ -116,14 +141,16 @@ export default function LogSession() {
             </div>
 
             {/* Notes Input */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
-                <FileText size={16} className="text-indigo-500" /> Quick Summary / Notes
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-neutral-500 ml-1">
+                <FileText size={14} /> Knowledge Capture
               </label>
               <textarea 
-                rows="3"
-                placeholder="What were the key takeaways? (This helps AI generate better questions)"
-                className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 transition"
+                rows="4"
+                value={formData.notes}
+                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                placeholder="Paste key concepts, formulas, or summaries here for the AI to process..."
+                className="w-full p-4 bg-neutral-950 border border-neutral-800 rounded-2xl focus:ring-1 focus:ring-white transition-all text-white placeholder:text-neutral-700 resize-none"
               />
             </div>
 
@@ -131,13 +158,19 @@ export default function LogSession() {
             <button 
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition transform hover:scale-[1.01] flex items-center justify-center gap-3 disabled:opacity-70"
+              className="w-full bg-white text-black p-5 rounded-2xl font-bold text-lg hover:bg-neutral-200 transition-all active:scale-[0.99] flex items-center justify-center gap-3 disabled:opacity-50"
             >
-              {loading ? "Saving Progress..." : <><CheckCircle size={24} /> Save Study Session</>}
+              {loading ? (
+                <Loader2 className="animate-spin" size={24} />
+              ) : (
+                <>
+                  <CheckCircle size={22} /> Commit to Progress
+                </>
+              )}
             </button>
           </form>
-        </div>
+        </motion.div>
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -59,3 +59,58 @@ class AssessmentResponse(BaseModel):
     topic: str
     generated_at: datetime
     questions: str
+
+
+# Chat / Tutor Schemas
+class ConversationCreate(BaseModel):
+    topic: str = Field(..., min_length=2, max_length=100)
+    question: str = Field(..., min_length=10, max_length=2000)
+
+
+class ConversationResponse(BaseModel):
+    id: int
+    topic: str
+    question: str
+    answer: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Study Group Schemas
+class StudyGroupCreate(BaseModel):
+    name: str = Field(..., min_length=3, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+    is_public: bool = True
+
+
+class StudyGroupResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    creator_id: int
+    is_public: bool
+    created_at: datetime
+    member_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class StudyGroupDetailResponse(StudyGroupResponse):
+    members: List[UserResponse] = []
+
+
+# Leaderboard Schemas
+class LeaderboardEntry(BaseModel):
+    rank: int
+    user_email: str
+    total_xp: int
+    study_hours: float
+    streak: int
+
+
+class LeaderboardResponse(BaseModel):
+    entries: List[LeaderboardEntry]
+    user_rank: Optional[LeaderboardEntry] = None

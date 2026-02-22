@@ -61,3 +61,47 @@ Ensure the formatting is clean and Markdown-friendly.
 
     except Exception as e:
         return f"Error generating questions: {str(e)}"
+
+def generate_tutor_response(topic: str, question: str) -> str:
+    """
+    Generate a helpful tutor response to a student's question using Socratic method.
+    Returns well-formatted response with examples and clear structure.
+    """
+    
+    prompt = f"""
+You are an exceptional AI tutor helping a student deeply understand {topic}.
+
+Student's Question About "{topic}":
+{question}
+
+Your Response Strategy:
+1. Start with a brief, clear answer (1-2 sentences)
+2. Provide a detailed explanation with structured steps
+3. Include 2-3 concrete examples or analogies
+4. Highlight key concepts and relationships
+5. End with a thought-provoking follow-up question
+6. Use markdown formatting for clarity
+
+Response Structure (use markdown):
+- Use **bold** for key terms
+- Use bullet points for lists and steps
+- Use > for important notes
+- Use code blocks (```...```) if showing code or formulas
+- Use headings (##) to organize sections
+
+Guidelines:
+- Be conversational and encouraging
+- Explain WHY concepts matter, not just WHAT they are
+- Break complex ideas into digestible parts
+- Connect new ideas to things they might already know
+- Keep language clear - avoid unnecessary jargon
+- Format with good visual hierarchy using markdown
+
+Provide your response in a way that's easy to read and understand:
+"""
+
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        return f"I apologize, I encountered an error: {str(e)}. Please try asking your question again."
