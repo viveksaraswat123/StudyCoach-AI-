@@ -58,3 +58,41 @@ class StudyGroup(Base):
     
     creator = relationship("User", back_populates="owned_groups")
     members = relationship("User", secondary=study_group_members, back_populates="member_groups")
+
+
+# Kanban Models
+class KanbanBoard(Base):
+    __tablename__ = "kanban_boards"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=func.now())
+
+    columns = relationship("KanbanColumn", back_populates="board", cascade="all, delete-orphan")
+
+
+class KanbanColumn(Base):
+    __tablename__ = "kanban_columns"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    position = Column(Integer, default=0)
+    board_id = Column(Integer, ForeignKey("kanban_boards.id"))
+
+    board = relationship("KanbanBoard", back_populates="columns")
+    cards = relationship("KanbanCard", back_populates="column", cascade="all, delete-orphan")
+
+
+class KanbanCard(Base):
+    __tablename__ = "kanban_cards"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    description = Column(Text, nullable=True)
+    due_date = Column(DateTime, nullable=True)
+    priority = Column(Integer, default=3)
+    position = Column(Integer, default=0)
+    ai_suggestion = Column(Text, nullable=True)
+    column_id = Column(Integer, ForeignKey("kanban_columns.id"))
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    column = relationship("KanbanColumn", back_populates="cards")

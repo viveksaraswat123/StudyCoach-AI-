@@ -105,3 +105,55 @@ Provide your response in a way that's easy to read and understand:
         return response.text.strip()
     except Exception as e:
         return f"I apologize, I encountered an error: {str(e)}. Please try asking your question again."
+
+
+def generate_card_suggestion(title: str = "", description: str = "", due_date: str | None = None) -> dict:
+    """
+    Suggest a better title, priority (1 high - 5 low), and short notes for a kanban card.
+    Returns a dict compatible with KanbanSuggestionResponse.
+    """
+    prompt = f"""
+You are an expert productivity assistant.
+
+Given a task title and optional description and due date, suggest:
+- a concise, clearer title (1-8 words)
+- a priority integer from 1 (highest) to 5 (lowest)
+- one short note to help the user act on it immediately
+
+Task Title: {title}
+Description: {description}
+Due Date: {due_date}
+
+Return results in JSON with keys: suggested_title, suggested_priority, suggested_notes.
+Do not add extra commentary.
+"""
+    try:
+        resp = model.generate_content(prompt)
+        text = resp.text.strip()
+        # naive parse: try to extract JSON, otherwise fallback to plain parsing
+        import json, re
+        m = re.search(r"\{.*\}", text, re.S)
+        if m:
+            payload = json.loads(m.group(0))
+            return payload
+        # fallback: split lines
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        suggested_title = lines[0] if lines else title
+        suggested_priority = 3
+        suggested_notes = ""
+        for ln in lines:
+            if "priority" in ln.lower():
+                import re
+                d = re.findall(r"\d", ln)
+                if d:
+                    suggested_priority = int(d[0])
+            if "note" in ln.lower() or "notes" in ln.lower():
+                suggested_notes = ln.split(":", 1)[-1].strip()
+
+        return {
+            "suggested_title": suggested_title,
+            "suggested_priority": suggested_priority,
+            "suggested_notes": suggested_notes,
+        }
+    except Exception as e:
+        return {"suggested_title": title or "Suggested Task", "suggested_priority": 3, "suggested_notes": f"(error: {str(e)})"}

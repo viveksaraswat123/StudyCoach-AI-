@@ -59,6 +59,8 @@ app.add_middleware(
         "https://study-coach-ai-ashen.vercel.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -86,7 +88,7 @@ def get_current_user(
     try:
         payload = jwt.decode(
             token,
-            auth.SECRET_KEY,
+            auth.SECRET_KEY, 
             algorithms=[auth.ALGORITHM],
         )
         email: str | None = payload.get("sub")
@@ -103,6 +105,10 @@ def get_current_user(
 
 
 CurrentUser = Annotated[models.User, Depends(get_current_user)]
+
+# Register kanban router (import here to avoid circular imports)
+import kanban
+app.include_router(kanban.router, prefix="/api/kanban")
 
 
 #Auth Routes

@@ -11,6 +11,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const LogSession = lazy(() => import("./pages/LogSession"));
 const ChatTutor = lazy(() => import("./pages/ChatTutor"));
 const StudyGroups = lazy(() => import("./pages/StudyGroups"));
+const Kanban = lazy(() => import("./pages/Kanban"));
 
 /* Private Route Guard */
 const ProtectedRoute = ({ children }) => {
@@ -66,6 +67,9 @@ const AnimatedRoutes = () => {
             } />
             <Route path="/study-groups" element={
               <ProtectedRoute><StudyGroups /></ProtectedRoute>
+            } />
+            <Route path="/kanban" element={
+              <ProtectedRoute><Kanban /></ProtectedRoute>
             } />
 
             {/* Error States */}

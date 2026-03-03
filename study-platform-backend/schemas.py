@@ -114,3 +114,70 @@ class LeaderboardEntry(BaseModel):
 class LeaderboardResponse(BaseModel):
     entries: List[LeaderboardEntry]
     user_rank: Optional[LeaderboardEntry] = None
+
+
+# Kanban Schemas
+class KanbanBoardCreate(BaseModel):
+    name: str
+
+
+class KanbanBoardResponse(BaseModel):
+    id: int
+    name: str
+    owner_id: Optional[int]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class KanbanColumnCreate(BaseModel):
+    title: str
+    board_id: int
+
+
+class KanbanColumnResponse(BaseModel):
+    id: int
+    title: str
+    position: int
+    board_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class KanbanCardCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    due_date: Optional[datetime] = None
+    priority: Optional[int] = 3
+    column_id: int
+
+
+class KanbanCardUpdate(BaseModel):
+    title: Optional[str]
+    description: Optional[str]
+    due_date: Optional[datetime]
+    priority: Optional[int]
+    column_id: Optional[int]
+    position: Optional[int]
+
+
+class KanbanCardResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    due_date: Optional[datetime]
+    priority: int
+    position: int
+    ai_suggestion: Optional[str]
+    column_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class KanbanSuggestionResponse(BaseModel):
+    suggested_title: str
+    suggested_priority: int
+    suggested_notes: Optional[str]
