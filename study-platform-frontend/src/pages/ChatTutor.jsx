@@ -30,7 +30,7 @@ export default function ChatTutor() {
   const [showNewChat, setShowNewChat] = useState(true);
   const [copiedId, setCopiedId] = useState(null);
   const messagesEndRef = useRef(null);
-  const chatContainerRef = useRef(null);
+  // FIX 7: Removed unused chatContainerRef
   const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
@@ -70,11 +70,17 @@ export default function ChatTutor() {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
+
     if (!topic.trim() || !question.trim() || loading) return;
 
+    // Frontend validation (matches backend schema)
+    if (question.trim().length < 10) {
+      setError("Question must be at least 10 characters.");
+      return;
+    }
+
     setLoading(true);
-    setError(null);
-    setShowNewChat(false);
+    setError(null); // FIX 8: Clear error before every new request
 
     try {
       const res = await API.post("/tutor/ask", {
@@ -92,14 +98,37 @@ export default function ChatTutor() {
       };
 
       setMessages((prev) => [...prev, newMessage]);
+      // FIX 2: Only hide the welcome screen after a successful response
+      setShowNewChat(false);
       setQuestion("");
     } catch (err) {
-      setError(
-        err.response?.data?.detail ||
-          "Failed to get response. Please try again."
-      );
+      let message = "Failed to get response. Please try again.";
+
+      if (err.response?.data?.detail) {
+        const detail = err.response.data.detail;
+
+        if (Array.isArray(detail)) {
+          message = detail[0]?.msg || message;
+        } else if (typeof detail === "string") {
+          message = detail;
+        }
+      }
+
+      setError(message);
+      // FIX 2: Do NOT hide welcome screen if request failed and there are no messages
+      if (messages.length > 0) {
+        setShowNewChat(false);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // FIX 1: Separate keyboard handler that submits the form properly
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !loading) {
+      e.preventDefault();
+      handleSendMessage(e);
     }
   };
 
@@ -133,8 +162,14 @@ export default function ChatTutor() {
     });
 
     const element = document.createElement("a");
-    element.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(chatText));
-    element.setAttribute("download", `study-tutor-chat-${new Date().getTime()}.txt`);
+    element.setAttribute(
+      "href",
+      "data:text/plain;charset=utf-8," + encodeURIComponent(chatText)
+    );
+    element.setAttribute(
+      "download",
+      `study-tutor-chat-${new Date().getTime()}.txt`
+    );
     element.style.display = "none";
     document.body.appendChild(element);
     element.click();
@@ -158,24 +193,22 @@ export default function ChatTutor() {
       const margin = 12;
       const contentWidth = pageWidth - 2 * margin;
       let y = margin;
-      let pageNum = 1;
 
-      // Helper to add new page
+      // FIX 5: Use explicit font name "helvetica" instead of undefined
       const addNewPage = () => {
         doc.addPage();
         y = margin;
-        pageNum++;
       };
 
       // Header on first page
       doc.setFontSize(18);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.setTextColor(0, 102, 204);
       doc.text("Study Tutor Chat Export", margin, y);
       y += 10;
 
       doc.setFontSize(9);
-      doc.setFont(undefined, "normal");
+      doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
       doc.text(`Exported on: ${new Date().toLocaleString()}`, margin, y);
       y += 8;
@@ -186,55 +219,41 @@ export default function ChatTutor() {
 
       doc.setTextColor(0);
 
-      // Messages
       messages.forEach((msg, idx) => {
-        // Question
         const questionLabel = `Q${idx + 1}. ${msg.topic}`;
-        doc.setFont(undefined, "bold");
+        doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(0, 102, 204);
 
-        // Check if question fits on current page
-        if (y + 8 > pageHeight - 20) {
-          addNewPage();
-        }
+        if (y + 8 > pageHeight - 20) addNewPage();
 
         doc.text(questionLabel, margin, y);
         y += 8;
 
-        // Question content
-        doc.setFont(undefined, "normal");
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         doc.setTextColor(40);
         const qLines = doc.splitTextToSize(msg.question, contentWidth - 4);
-        
-        // Check if question text fits
-        if (y + qLines.length * 4 > pageHeight - 30) {
-          addNewPage();
-        }
+
+        if (y + qLines.length * 4 > pageHeight - 30) addNewPage();
 
         doc.text(qLines, margin + 2, y);
         y += qLines.length * 4 + 5;
 
-        // Answer header
-        doc.setFont(undefined, "bold");
+        doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(0, 102, 204);
 
-        if (y + 8 > pageHeight - 25) {
-          addNewPage();
-        }
+        if (y + 8 > pageHeight - 25) addNewPage();
 
         doc.text("Answer:", margin, y);
         y += 8;
 
-        // Answer content
-        doc.setFont(undefined, "normal");
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(8.5);
         doc.setTextColor(50);
         const ansLines = doc.splitTextToSize(msg.answer, contentWidth - 4);
 
-        // Check if answer fits, if not add multiple lines/pages
         let answerY = y;
         for (let i = 0; i < ansLines.length; i++) {
           if (answerY + 4 > pageHeight - 15) {
@@ -247,20 +266,14 @@ export default function ChatTutor() {
 
         y = answerY + 5;
 
-        // Timestamp
-        if (y + 8 > pageHeight - 15) {
-          addNewPage();
-        }
+        if (y + 8 > pageHeight - 15) addNewPage();
 
         doc.setFontSize(7);
         doc.setTextColor(150);
         doc.text(msg.timestamp.toLocaleString(), margin, y);
         y += 8;
 
-        // Separator
-        if (y + 3 > pageHeight - 15) {
-          addNewPage();
-        }
+        if (y + 3 > pageHeight - 15) addNewPage();
 
         doc.setDrawColor(220);
         doc.line(margin, y, pageWidth - margin, y);
@@ -294,7 +307,9 @@ export default function ChatTutor() {
                   <Brain size={24} className="text-blue-400 flex-shrink-0" />
                   <span className="hidden sm:inline">AI Tutor</span>
                 </h1>
-                <p className="text-neutral-500 text-xs md:text-sm">Learn anything, anytime</p>
+                <p className="text-neutral-500 text-xs md:text-sm">
+                  Learn anything, anytime
+                </p>
               </div>
             </div>
 
@@ -386,13 +401,15 @@ export default function ChatTutor() {
               {/* MESSAGES */}
               {messages.length > 0 ? (
                 <div className="space-y-4 md:space-y-6 mb-8 w-full">
-                  <AnimatePresence>
+                  {/* FIX 4: Added mode="popLayout" to AnimatePresence */}
+                  <AnimatePresence mode="popLayout">
                     {messages.map((msg, idx) => (
                       <motion.div
                         key={msg.id}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ delay: idx * 0.05 }}
                         className="space-y-3 md:space-y-4 w-full"
                       >
                         {/* QUESTION */}
@@ -404,7 +421,9 @@ export default function ChatTutor() {
                               </span>
                             </div>
                             <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 md:p-5 rounded-2xl rounded-tr-sm shadow-lg break-words">
-                              <p className="text-white text-sm md:text-base leading-relaxed break-words">{msg.question}</p>
+                              <p className="text-white text-sm md:text-base leading-relaxed break-words">
+                                {msg.question}
+                              </p>
                               <p className="text-xs text-blue-100 mt-3 opacity-75">
                                 {msg.timestamp.toLocaleTimeString([], {
                                   hour: "2-digit",
@@ -428,40 +447,84 @@ export default function ChatTutor() {
                             </div>
                             <div className="bg-neutral-800/50 border border-neutral-700/50 p-4 md:p-5 rounded-2xl rounded-tl-sm backdrop-blur-sm relative group overflow-hidden">
                               <div className="prose prose-invert prose-sm md:prose-base max-w-none text-neutral-200 overflow-hidden">
+                                {/* FIX 6: Updated code component to not use deprecated inline prop */}
                                 <ReactMarkdown
                                   components={{
                                     h1: ({ node, ...props }) => (
-                                      <h1 className="text-xl md:text-2xl font-bold mt-4 mb-2 text-white break-words" {...props} />
+                                      <h1
+                                        className="text-xl md:text-2xl font-bold mt-4 mb-2 text-white break-words"
+                                        {...props}
+                                      />
                                     ),
                                     h2: ({ node, ...props }) => (
-                                      <h2 className="text-lg md:text-xl font-bold mt-3 mb-2 text-white break-words" {...props} />
+                                      <h2
+                                        className="text-lg md:text-xl font-bold mt-3 mb-2 text-white break-words"
+                                        {...props}
+                                      />
                                     ),
                                     h3: ({ node, ...props }) => (
-                                      <h3 className="text-base md:text-lg font-bold mt-2 mb-1 text-neutral-100 break-words" {...props} />
+                                      <h3
+                                        className="text-base md:text-lg font-bold mt-2 mb-1 text-neutral-100 break-words"
+                                        {...props}
+                                      />
                                     ),
                                     p: ({ node, ...props }) => (
-                                      <p className="mb-3 leading-relaxed text-neutral-200 break-words" {...props} />
+                                      <p
+                                        className="mb-3 leading-relaxed text-neutral-200 break-words"
+                                        {...props}
+                                      />
                                     ),
                                     ul: ({ node, ...props }) => (
-                                      <ul className="list-disc list-inside mb-3 space-y-1 ml-2 break-words" {...props} />
+                                      <ul
+                                        className="list-disc list-inside mb-3 space-y-1 ml-2 break-words"
+                                        {...props}
+                                      />
                                     ),
                                     ol: ({ node, ...props }) => (
-                                      <ol className="list-decimal list-inside mb-3 space-y-1 ml-2 break-words" {...props} />
+                                      <ol
+                                        className="list-decimal list-inside mb-3 space-y-1 ml-2 break-words"
+                                        {...props}
+                                      />
                                     ),
                                     li: ({ node, ...props }) => (
-                                      <li className="text-neutral-200 ml-2 break-words" {...props} />
+                                      <li
+                                        className="text-neutral-200 ml-2 break-words"
+                                        {...props}
+                                      />
                                     ),
-                                    code: ({ node, inline, ...props }) =>
-                                      inline ? (
-                                        <code className="bg-neutral-900 px-2 py-1 rounded text-cyan-300 font-mono text-xs md:text-sm break-all" {...props} />
+                                    code: ({ node, children, ...props }) => {
+                                      const isInline =
+                                        !node?.position ||
+                                        node?.type !== "element" ||
+                                        node?.tagName !== "code" ||
+                                        node?.properties?.className == null;
+                                      return isInline ? (
+                                        <code
+                                          className="bg-neutral-900 px-2 py-1 rounded text-cyan-300 font-mono text-xs md:text-sm break-all"
+                                          {...props}
+                                        >
+                                          {children}
+                                        </code>
                                       ) : (
-                                        <code className="block bg-neutral-900/50 border border-neutral-700 p-3 rounded-lg text-cyan-300 font-mono text-xs md:text-sm overflow-x-auto my-3 whitespace-pre-wrap break-words" {...props} />
-                                      ),
+                                        <code
+                                          className="block bg-neutral-900/50 border border-neutral-700 p-3 rounded-lg text-cyan-300 font-mono text-xs md:text-sm overflow-x-auto my-3 whitespace-pre-wrap break-words"
+                                          {...props}
+                                        >
+                                          {children}
+                                        </code>
+                                      );
+                                    },
                                     blockquote: ({ node, ...props }) => (
-                                      <blockquote className="border-l-4 border-blue-500 pl-4 py-1 my-3 text-neutral-300 italic break-words" {...props} />
+                                      <blockquote
+                                        className="border-l-4 border-blue-500 pl-4 py-1 my-3 text-neutral-300 italic break-words"
+                                        {...props}
+                                      />
                                     ),
                                     strong: ({ node, ...props }) => (
-                                      <strong className="font-bold text-blue-300 break-words" {...props} />
+                                      <strong
+                                        className="font-bold text-blue-300 break-words"
+                                        {...props}
+                                      />
                                     ),
                                   }}
                                 >
@@ -473,7 +536,9 @@ export default function ChatTutor() {
                               <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => copyToClipboard(msg.answer, msg.id)}
+                                onClick={() =>
+                                  copyToClipboard(msg.answer, msg.id)
+                                }
                                 className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-white hover:bg-neutral-700/50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                               >
                                 {copiedId === msg.id ? (
@@ -503,9 +568,12 @@ export default function ChatTutor() {
                   >
                     <Brain size={40} className="text-blue-400" />
                   </motion.div>
-                  <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 break-words">Start Learning</h2>
+                  <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 break-words">
+                    Start Learning
+                  </h2>
                   <p className="text-neutral-400 max-w-md mx-auto text-sm md:text-base leading-relaxed break-words">
-                    Ask me anything about topics you're studying. I'll explain concepts clearly and help you understand better.
+                    Ask me anything about topics you're studying. I'll explain
+                    concepts clearly and help you understand better.
                   </p>
 
                   {/* QUICK SUGGESTIONS */}
@@ -515,9 +583,18 @@ export default function ChatTutor() {
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto px-2 md:px-0">
                       {[
-                        { topic: "Python", question: "How do list comprehensions work?" },
-                        { topic: "Math", question: "What is the chain rule in calculus?" },
-                        { topic: "History", question: "What caused the fall of Rome?" },
+                        {
+                          topic: "Python",
+                          question: "How do list comprehensions work?",
+                        },
+                        {
+                          topic: "Math",
+                          question: "What is the chain rule in calculus?",
+                        },
+                        {
+                          topic: "History",
+                          question: "What caused the fall of Rome?",
+                        },
                       ].map((suggestion, idx) => (
                         <motion.button
                           key={idx}
@@ -564,11 +641,8 @@ export default function ChatTutor() {
                   placeholder="Ask your question..."
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && !loading) {
-                      handleSendMessage(e);
-                    }
-                  }}
+                  // FIX 1: Use dedicated keyboard handler to avoid double-submit
+                  onKeyDown={handleKeyDown}
                   disabled={loading}
                   className="flex-1 bg-neutral-800/50 border border-neutral-700/50 rounded-xl px-4 py-3 text-sm md:text-base text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all disabled:opacity-50"
                 />
@@ -590,7 +664,11 @@ export default function ChatTutor() {
               </div>
             </div>
             <p className="text-xs text-neutral-500 text-center">
-              Press <kbd className="px-2 py-1 bg-neutral-800 rounded text-neutral-300">Enter</kbd> to send
+              Press{" "}
+              <kbd className="px-2 py-1 bg-neutral-800 rounded text-neutral-300">
+                Enter
+              </kbd>{" "}
+              to send
             </p>
           </form>
         </div>

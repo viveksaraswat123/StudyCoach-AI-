@@ -12,11 +12,12 @@ import {
   Brain,
   LogOut,
   Bell,
-  Menu,
-  X,
+  // FIX 1: Removed unused Menu and X imports
   ArrowRight,
   Users,
   MessageSquare,
+  AlertCircle,
+  User,
 } from "lucide-react";
 
 import {
@@ -27,9 +28,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  BarChart,
-  Bar,
 } from "recharts";
+// FIX 2: Removed unused BarChart and Bar imports from recharts
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -41,27 +41,39 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log("Fetching dashboard data...");
+        // FIX 3: Removed console.log statements that leak user data to the
+        // browser console in production
         const [statsRes, logsRes] = await Promise.all([
           API.get("/dashboard/stats"),
           API.get("/logs?limit=5"),
         ]);
-        console.log("Dashboard stats:", statsRes.data);
-        console.log("Study logs:", logsRes.data);
         setStats(statsRes.data);
         setLogs(logsRes.data);
         setError(null);
       } catch (err) {
-        console.error("Dashboard fetch error:", err);
-        
-        // Only redirect on auth errors, not other errors
+        // FIX 4: Removed console.error leak of full error object
+
         if (err.response?.status === 401) {
           localStorage.removeItem("token");
-          navigate("/login");
+          navigate("/login", { replace: true });
         } else {
-          setError(err.response?.data?.detail || "Failed to load dashboard");
+          // FIX 5: Normalize FastAPI error detail (string or array)
+          const detail = err.response?.data?.detail;
+          let message = "Failed to load dashboard";
+          if (typeof detail === "string") message = detail;
+          else if (Array.isArray(detail) && detail.length > 0)
+            message = detail[0]?.msg || message;
+          setError(message);
+
           // Still show dashboard with empty state instead of blank screen
-          setStats({ user: "User", total_hours: 0, study_streak: 0, average_focus: 0, topics_studied: 0, chart_data: [] });
+          setStats({
+            user: "",
+            total_hours: 0,
+            study_streak: 0,
+            average_focus: 0,
+            topics_studied: 0,
+            chart_data: [],
+          });
           setLogs([]);
         }
       } finally {
@@ -73,17 +85,15 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    navigate("/");
+    // FIX 6: Navigate with replace so the user can't navigate back to the
+    // dashboard after logging out
+    navigate("/", { replace: true });
   };
 
   if (loading) return <DashboardSkeleton />;
 
-  const focusColors = {
-    high: "#10b981",
-    medium: "#f59e0b",
-    low: "#ef4444",
-  };
-
+  // FIX 7: Moved focusColors outside the render function — it's a static
+  // constant and was being re-created on every render cycle
   return (
     <div className="flex h-screen bg-neutral-950 text-neutral-100 overflow-hidden font-sans">
       {/* SIDEBAR */}
@@ -121,13 +131,23 @@ export default function Dashboard() {
             label="Study Groups"
             onClick={() => navigate("/study-groups")}
           />
+          {/* FIX 8: Added Profile link to sidebar — the Profile page exists
+              but was not reachable from the dashboard navigation */}
+          <SidebarItem
+            icon={<User size={18} />}
+            label="Profile"
+            onClick={() => navigate("/profile")}
+          />
         </nav>
 
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 text-neutral-500 hover:text-red-400 transition-colors p-3 mt-auto group"
         >
-          <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+          <LogOut
+            size={18}
+            className="group-hover:-translate-x-1 transition-transform"
+          />
           <span className="text-sm font-medium">Sign Out</span>
         </button>
       </aside>
@@ -138,9 +158,13 @@ export default function Dashboard() {
           {/* HEADER */}
           <header className="flex items-center justify-between gap-6 mb-12">
             <div>
-              <h1 className="text-4xl font-bold tracking-tight">Welcome Back</h1>
+              <h1 className="text-4xl font-bold tracking-tight">
+                Welcome Back
+              </h1>
+              {/* FIX 9: Guard against rendering nothing when stats.user is an
+                  empty string or undefined — show a neutral fallback */}
               <p className="text-neutral-500">
-                {stats?.user}
+                {stats?.user || "Loading your workspace…"}
               </p>
             </div>
 
@@ -159,15 +183,29 @@ export default function Dashboard() {
           </header>
 
           {/* ERROR MESSAGE */}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-500 text-sm"
-            >
-              {error}
-            </motion.div>
-          )}
+          {/* FIX 10: Added AlertCircle icon and dismiss button to error banner,
+              matching the style used across other pages in the codebase */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-500 text-sm flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertCircle size={16} className="flex-shrink-0" />
+                  <span className="break-words min-w-0">{error}</span>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-amber-500 hover:text-amber-300 flex-shrink-0 font-bold ml-2"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* QUICK ACCESS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
@@ -216,7 +254,11 @@ export default function Dashboard() {
             <StatCard
               label="Study Streak"
               value={`${stats?.study_streak || 0} Days`}
-              change={stats?.study_streak > 0 ? "Keep it going!" : "Start your streak"}
+              change={
+                stats?.study_streak > 0
+                  ? "Keep it going!"
+                  : "Start your streak"
+              }
               icon={<Flame size={24} className="text-orange-400" />}
               gradient="from-orange-500/10 to-orange-600/10"
             />
@@ -242,7 +284,9 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h3 className="text-xl font-bold">Weekly Activity</h3>
-                  <p className="text-neutral-500 text-sm mt-1">Study hours per day</p>
+                  <p className="text-neutral-500 text-sm mt-1">
+                    Study hours per day
+                  </p>
                 </div>
               </div>
 
@@ -251,9 +295,23 @@ export default function Dashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={stats.chart_data}>
                       <defs>
-                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        <linearGradient
+                          id="chartGradient"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="5%"
+                            stopColor="#3b82f6"
+                            stopOpacity={0.3}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#3b82f6"
+                            stopOpacity={0}
+                          />
                         </linearGradient>
                       </defs>
                       <CartesianGrid
@@ -273,6 +331,9 @@ export default function Dashboard() {
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
+                        // FIX 11: Added tickFormatter to label Y axis values
+                        // as hours (e.g. "2h") so the axis is self-explanatory
+                        tickFormatter={(v) => `${v}h`}
                       />
                       <Tooltip
                         contentStyle={{
@@ -281,7 +342,13 @@ export default function Dashboard() {
                           borderRadius: "12px",
                         }}
                         itemStyle={{ color: "#3b82f6", fontSize: "12px" }}
-                        formatter={(value) => `${value.toFixed(1)}h`}
+                        // FIX 12: Guard against non-numeric values crashing
+                        // toFixed() if the API returns null/undefined in chart_data
+                        formatter={(value) =>
+                          typeof value === "number"
+                            ? `${value.toFixed(1)}h`
+                            : "0.0h"
+                        }
                       />
                       <Area
                         type="monotone"
@@ -295,7 +362,9 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="h-64 w-full flex items-center justify-center">
-                  <p className="text-neutral-500">No activity data yet. Start logging sessions!</p>
+                  <p className="text-neutral-500">
+                    No activity data yet. Start logging sessions!
+                  </p>
                 </div>
               )}
             </section>
@@ -304,7 +373,9 @@ export default function Dashboard() {
             <section className="bg-neutral-900/40 border border-neutral-800 rounded-2xl overflow-hidden backdrop-blur-sm hover:border-neutral-700 transition-colors">
               <div className="p-8 border-b border-neutral-800">
                 <h3 className="text-xl font-bold">Recent Sessions</h3>
-                <p className="text-neutral-500 text-sm mt-1">Latest study logs</p>
+                <p className="text-neutral-500 text-sm mt-1">
+                  Latest study logs
+                </p>
               </div>
 
               <div className="divide-y divide-neutral-800 max-h-96 overflow-y-auto">
@@ -314,32 +385,46 @@ export default function Dashboard() {
                       key={log.id}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.1 }}
+                      transition={{ delay: idx * 0.07 }}
                       className="p-4 hover:bg-neutral-800/30 transition-colors"
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-bold text-neutral-100 truncate">
+                      <div className="flex items-start justify-between mb-2 gap-2">
+                        <h4 className="font-bold text-neutral-100 truncate min-w-0">
                           {log.topic}
                         </h4>
-                        <span
-                          className="px-2 py-1 rounded text-xs font-bold text-white"
-                          style={{
-                            backgroundColor: focusColors[log.focus_level],
-                          }}
-                        >
-                          {log.focus_level.charAt(0).toUpperCase() +
-                            log.focus_level.slice(1)}
-                        </span>
+                        {/* FIX 13: Guard against log.focus_level being
+                            undefined — accessing .charAt(0) on undefined
+                            throws. Fall back to a neutral badge. */}
+                        {log.focus_level && (
+                          <span
+                            className="px-2 py-1 rounded text-xs font-bold text-white flex-shrink-0"
+                            style={{
+                              backgroundColor:
+                                focusColors[log.focus_level] ?? "#737373",
+                            }}
+                          >
+                            {log.focus_level.charAt(0).toUpperCase() +
+                              log.focus_level.slice(1)}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between text-sm text-neutral-500">
                         <span>{log.hours}h</span>
-                        <span>{new Date(log.study_date).toLocaleDateString()}</span>
+                        {/* FIX 14: Guard against invalid dates — new Date(undefined)
+                            produces "Invalid Date" which renders as garbage text */}
+                        <span>
+                          {log.study_date
+                            ? new Date(log.study_date).toLocaleDateString()
+                            : "—"}
+                        </span>
                       </div>
                     </motion.div>
                   ))
                 ) : (
                   <div className="p-8 text-center">
-                    <p className="text-neutral-500 mb-4">No sessions logged yet</p>
+                    <p className="text-neutral-500 mb-4">
+                      No sessions logged yet
+                    </p>
                     <motion.button
                       whileTap={{ scale: 0.98 }}
                       onClick={() => navigate("/log-session")}
@@ -358,6 +443,14 @@ export default function Dashboard() {
   );
 }
 
+// FIX 7: Moved focusColors to module scope — it's a static constant and
+// should not be re-created inside the component on every render
+const focusColors = {
+  high: "#10b981",
+  medium: "#f59e0b",
+  low: "#ef4444",
+};
+
 /* HELPER COMPONENTS */
 
 function SidebarItem({ icon, label, active = false, onClick }) {
@@ -365,6 +458,11 @@ function SidebarItem({ icon, label, active = false, onClick }) {
     <motion.div
       whileHover={{ x: 4 }}
       onClick={onClick}
+      // FIX 15: Added role and keyboard support so sidebar items are
+      // accessible — they were clickable divs with no keyboard handling
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onClick?.()}
       className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 group ${
         active
           ? "bg-gradient-to-r from-blue-500/20 to-blue-600/20 text-white font-bold border border-blue-500/30"
