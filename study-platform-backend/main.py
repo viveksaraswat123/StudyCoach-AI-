@@ -20,7 +20,10 @@ app = FastAPI(
     redoc_url=None,
 )
 
-models.Base.metadata.create_all(bind=database.engine)
+@app.on_event("startup")
+def startup_event():
+    models.Base.metadata.create_all(bind=database.engine)
+    init_db()
 
 # Database migration helper - add missing columns to existing tables
 def init_db():
@@ -50,7 +53,6 @@ def init_db():
         except Exception as e:
             print(f"Note: created_at column may already exist: {e}")
 
-init_db()
 
 
 app.add_middleware(
