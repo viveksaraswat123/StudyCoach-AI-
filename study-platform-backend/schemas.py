@@ -188,6 +188,17 @@ class KanbanSuggestionResponse(BaseModel):
     suggested_notes: Optional[str] = None
 
 
+# Group chat & sessions
+class GroupMessageCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=1000)
+
+class GroupSessionCreate(BaseModel):
+    title: str = Field(..., min_length=2, max_length=100)
+    scheduled_at: datetime
+    duration_minutes: int = Field(60, ge=15, le=480)
+    topic: Optional[str] = Field(None, max_length=100)
+
+
 # Flashcards
 class FlashcardDeckCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)

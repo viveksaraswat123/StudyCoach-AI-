@@ -352,6 +352,32 @@ def list_study_groups(db: DBSession, current_user: CurrentUser):
         .all()
     )
 
+    # Compute member counts in a single query to avoid N+1 lazy loads
+    group_ids = [g.id for g in groups]
+    if group_ids:
+        counts_query = (
+            db.query(
+                models.study_group_members.c.group_id,
+                func.count(models.study_group_members.c.user_id).label("cnt"),
+            )
+            .filter(models.study_group_members.c.group_id.in_(group_ids))
+            .group_by(models.study_group_members.c.group_id)
+            .all()
+        )
+        member_counts = {row.group_id: row.cnt for row in counts_query}
+
+        # Which groups the current user belongs to
+        user_group_ids = set(
+            row.group_id
+            for row in db.query(models.study_group_members.c.group_id)
+            .filter(models.study_group_members.c.user_id == current_user.id)
+            .filter(models.study_group_members.c.group_id.in_(group_ids))
+            .all()
+        )
+    else:
+        member_counts = {}
+        user_group_ids = set()
+
     result = []
     for group in groups:
         result.append({
@@ -360,16 +386,27 @@ def list_study_groups(db: DBSession, current_user: CurrentUser):
             "description": group.description,
             "is_public": group.is_public,
             "creator_id": group.creator_id,
-            "member_count": len(group.members),
-            "is_member": current_user in group.members,
+            "member_count": member_counts.get(group.id, 0),
+            "is_member": group.id in user_group_ids,
         })
 
     return result
 
 
 @app.get("/api/study-groups/my")
-def list_my_study_groups(current_user: CurrentUser):
-    return current_user.study_groups
+def list_my_study_groups(db: DBSession, current_user: CurrentUser):
+    result = []
+    for group in current_user.study_groups:
+        result.append({
+            "id": group.id,
+            "name": group.name,
+            "description": group.description,
+            "is_public": group.is_public,
+            "creator_id": group.creator_id,
+            "member_count": len(group.members),
+            "is_member": True,
+        })
+    return result
 
 
 @app.get("/api/study-groups/{group_id}")
@@ -385,7 +422,18 @@ def get_study_group(group_id: int, db: DBSession, current_user: CurrentUser):
     if not group.is_public and not is_member and not is_creator:
         raise HTTPException(status_code=404, detail="Study group not found")
 
-    return group
+    return {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description,
+        "is_public": group.is_public,
+        "creator_id": group.creator_id,
+        "creator_email": group.creator.email if group.creator else None,
+        "member_count": len(group.members),
+        "is_member": is_member,
+        "is_admin": group.creator_id == current_user.id,
+        "created_at": group.created_at,
+    }
 
 
 @app.post("/api/study-groups/{group_id}/join")
@@ -418,6 +466,186 @@ def leave_study_group(group_id: int, db: DBSession, current_user: CurrentUser):
     db.commit()
 
     return {"message": "Successfully left study group"}
+
+
+# ── GROUP CHAT ───────────────────────────────────────────────────────────────
+
+@app.get("/api/study-groups/{group_id}/messages")
+def get_group_messages(group_id: int, db: DBSession, current_user: CurrentUser, limit: int = 100):
+    group = db.query(models.StudyGroup).filter_by(id=group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Join the group to view messages")
+    messages = (
+        db.query(models.GroupMessage)
+        .filter_by(group_id=group_id)
+        .order_by(models.GroupMessage.created_at.asc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": m.id,
+            "content": m.content,
+            "user_id": m.user_id,
+            "author_email": m.author.email if m.author else "Unknown",
+            "created_at": m.created_at,
+        }
+        for m in messages
+    ]
+
+
+@app.post("/api/study-groups/{group_id}/messages", status_code=status.HTTP_201_CREATED)
+def send_group_message(group_id: int, data: schemas.GroupMessageCreate, db: DBSession, current_user: CurrentUser):
+    group = db.query(models.StudyGroup).filter_by(id=group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Join the group to send messages")
+    msg = models.GroupMessage(group_id=group_id, user_id=current_user.id, content=data.content)
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return {
+        "id": msg.id,
+        "content": msg.content,
+        "user_id": msg.user_id,
+        "author_email": current_user.email,
+        "created_at": msg.created_at,
+    }
+
+
+# ── GROUP FEED ───────────────────────────────────────────────────────────────
+
+@app.get("/api/study-groups/{group_id}/feed")
+def get_group_feed(group_id: int, db: DBSession, current_user: CurrentUser, limit: int = 40):
+    group = db.query(models.StudyGroup).filter_by(id=group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if not group.is_public and current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Access denied")
+    member_ids = [m.id for m in group.members]
+    if not member_ids:
+        return []
+    members_by_id = {m.id: m.email for m in group.members}
+    logs = (
+        db.query(models.StudyLog)
+        .filter(models.StudyLog.user_id.in_(member_ids))
+        .order_by(models.StudyLog.study_date.desc(), models.StudyLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": log.id,
+            "topic": log.topic,
+            "hours": log.hours,
+            "study_date": log.study_date,
+            "focus_level": log.focus_level,
+            "user_email": members_by_id.get(log.user_id, "Unknown"),
+        }
+        for log in logs
+    ]
+
+
+# ── WEEKLY CHALLENGE ─────────────────────────────────────────────────────────
+
+@app.get("/api/study-groups/{group_id}/weekly")
+def get_group_weekly(group_id: int, db: DBSession, current_user: CurrentUser):
+    group = db.query(models.StudyGroup).filter_by(id=group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    member_ids = [m.id for m in group.members]
+    members_by_id = {m.id: m.email for m in group.members}
+    today = datetime.utcnow().date()
+    week_start = today - timedelta(days=today.weekday())
+    if not member_ids:
+        return {"week_start": week_start, "entries": []}
+    hours_query = (
+        db.query(models.StudyLog.user_id, func.sum(models.StudyLog.hours).label("hours"))
+        .filter(models.StudyLog.user_id.in_(member_ids), models.StudyLog.study_date >= week_start)
+        .group_by(models.StudyLog.user_id)
+        .all()
+    )
+    hours_map = {row.user_id: float(row.hours) for row in hours_query}
+    entries = sorted(
+        [{"user_email": members_by_id[uid], "hours": round(hours_map.get(uid, 0), 1)} for uid in member_ids],
+        key=lambda x: x["hours"],
+        reverse=True,
+    )
+    return {
+        "week_start": str(week_start),
+        "entries": [{"rank": i + 1, **e} for i, e in enumerate(entries)],
+    }
+
+
+# ── GROUP SESSIONS ────────────────────────────────────────────────────────────
+
+@app.get("/api/study-groups/{group_id}/sessions")
+def get_group_sessions(group_id: int, db: DBSession, current_user: CurrentUser):
+    group = db.query(models.StudyGroup).filter_by(id=group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    sessions = (
+        db.query(models.GroupSession)
+        .filter_by(group_id=group_id)
+        .order_by(models.GroupSession.scheduled_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": s.id,
+            "title": s.title,
+            "topic": s.topic,
+            "scheduled_at": s.scheduled_at,
+            "duration_minutes": s.duration_minutes,
+            "creator_email": s.creator.email if s.creator else "Unknown",
+            "creator_id": s.creator_id,
+        }
+        for s in sessions
+    ]
+
+
+@app.post("/api/study-groups/{group_id}/sessions", status_code=status.HTTP_201_CREATED)
+def create_group_session(group_id: int, data: schemas.GroupSessionCreate, db: DBSession, current_user: CurrentUser):
+    group = db.query(models.StudyGroup).filter_by(id=group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Study group not found")
+    if current_user not in group.members:
+        raise HTTPException(status_code=403, detail="Join the group to schedule sessions")
+    s = models.GroupSession(
+        group_id=group_id,
+        creator_id=current_user.id,
+        title=data.title,
+        scheduled_at=data.scheduled_at,
+        duration_minutes=data.duration_minutes,
+        topic=data.topic,
+    )
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return {
+        "id": s.id,
+        "title": s.title,
+        "topic": s.topic,
+        "scheduled_at": s.scheduled_at,
+        "duration_minutes": s.duration_minutes,
+        "creator_email": current_user.email,
+        "creator_id": current_user.id,
+    }
+
+
+@app.delete("/api/study-groups/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_group_session(session_id: int, db: DBSession, current_user: CurrentUser):
+    s = db.query(models.GroupSession).filter_by(id=session_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    group = db.query(models.StudyGroup).filter_by(id=s.group_id).first()
+    if s.creator_id != current_user.id and (group and group.creator_id != current_user.id):
+        raise HTTPException(status_code=403, detail="You can only delete your own sessions")
+    db.delete(s)
+    db.commit()
 
 
 @app.get("/api/leaderboard/global")

@@ -103,6 +103,37 @@ class StudyGroup(Base):
         back_populates="study_groups",
         overlaps="study_groups",
     )
+    messages = relationship("GroupMessage", back_populates="group", cascade="all, delete-orphan")
+    sessions = relationship("GroupSession", back_populates="group", cascade="all, delete-orphan")
+
+
+class GroupMessage(Base):
+    __tablename__ = "group_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("study_groups.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=dt.utcnow, nullable=False)
+
+    group = relationship("StudyGroup", back_populates="messages")
+    author = relationship("User")
+
+
+class GroupSession(Base):
+    __tablename__ = "group_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("study_groups.id", ondelete="CASCADE"), nullable=False)
+    creator_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String, nullable=False)
+    scheduled_at = Column(DateTime, nullable=False)
+    duration_minutes = Column(Integer, default=60, nullable=False)
+    topic = Column(String, nullable=True)
+    created_at = Column(DateTime, default=dt.utcnow, nullable=False)
+
+    group = relationship("StudyGroup", back_populates="sessions")
+    creator = relationship("User")
 
 
 class KanbanBoard(Base):

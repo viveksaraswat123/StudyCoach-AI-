@@ -256,15 +256,6 @@ const AnimatedRoutes = () => {
                 </ProtectedRoute>
               }
             />
-            {/* FIX 5: Added dynamic study group detail route */}
-            <Route
-              path="/study-groups/:id"
-              element={
-                <ProtectedRoute>
-                  <StudyGroups />
-                </ProtectedRoute>
-              }
-            />
             <Route
               path="/kanban"
               element={
