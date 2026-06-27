@@ -186,3 +186,46 @@ class KanbanSuggestionResponse(BaseModel):
     suggested_title: str
     suggested_priority: int = Field(..., ge=1, le=5)
     suggested_notes: Optional[str] = None
+
+
+# Flashcards
+class FlashcardDeckCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+    color: Optional[str] = "#3b82f6"
+
+
+class FlashcardDeckResponse(ORMBase):
+    id: int
+    name: str
+    description: Optional[str] = None
+    color: str
+    created_at: Optional[datetime] = None
+    card_count: int = 0
+    due_count: int = 0
+
+
+class FlashcardCreate(BaseModel):
+    front: str = Field(..., min_length=1, max_length=1000)
+    back: str = Field(..., min_length=1, max_length=2000)
+
+
+class FlashcardResponse(ORMBase):
+    id: int
+    front: str
+    back: str
+    deck_id: int
+    ease_factor: float
+    interval: int
+    repetitions: int
+    next_review: Optional[date] = None
+    created_at: Optional[datetime] = None
+
+
+class FlashcardReview(BaseModel):
+    rating: int = Field(..., ge=0, le=5)
+
+
+class FlashcardGenerateRequest(BaseModel):
+    topic: str = Field(..., min_length=2, max_length=100)
+    count: int = Field(10, ge=1, le=20)

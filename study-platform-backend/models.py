@@ -47,6 +47,11 @@ class User(Base):
         cascade="all",
         foreign_keys="StudyGroup.creator_id",
     )
+    flashcard_decks = relationship(
+        "FlashcardDeck",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
 
 
 class StudyLog(Base):
@@ -148,3 +153,33 @@ class KanbanCard(Base):
     updated_at = Column(DateTime, default=dt.utcnow, onupdate=dt.utcnow, nullable=True)
 
     column = relationship("KanbanColumn", back_populates="cards")
+
+
+class FlashcardDeck(Base):
+    __tablename__ = "flashcard_decks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    color = Column(String, default="#3b82f6", nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=dt.utcnow, nullable=True)
+
+    owner = relationship("User", back_populates="flashcard_decks")
+    cards = relationship("Flashcard", back_populates="deck", cascade="all, delete-orphan")
+
+
+class Flashcard(Base):
+    __tablename__ = "flashcards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    front = Column(Text, nullable=False)
+    back = Column(Text, nullable=False)
+    deck_id = Column(Integer, ForeignKey("flashcard_decks.id", ondelete="CASCADE"), nullable=False)
+    ease_factor = Column(Float, default=2.5, nullable=False)
+    interval = Column(Integer, default=1, nullable=False)
+    repetitions = Column(Integer, default=0, nullable=False)
+    next_review = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=dt.utcnow, nullable=True)
+
+    deck = relationship("FlashcardDeck", back_populates="cards")

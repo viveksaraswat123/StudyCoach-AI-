@@ -107,6 +107,35 @@ Provide your response in a way that's easy to read and understand:
         return f"I apologize, I encountered an error: {str(e)}. Please try asking your question again."
 
 
+def generate_flashcards(topic: str, count: int = 10) -> list:
+    prompt = f"""You are a study assistant. Generate exactly {count} high-quality flashcards for this topic: {topic}
+
+Return ONLY a valid JSON array. No markdown, no explanation, no code fences. Example format:
+[{{"front": "What is X?", "back": "X is Y because Z."}}, ...]
+
+Requirements:
+- front: a clear question, term, or concept prompt (max 20 words)
+- back: a concise but complete answer (1-3 sentences)
+- Cover different aspects, from foundational to advanced
+- Make each card test one distinct thing"""
+
+    try:
+        import json, re
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        m = re.search(r"\[.*\]", text, re.S)
+        if m:
+            cards = json.loads(m.group(0))
+            return [
+                {"front": str(c["front"]), "back": str(c["back"])}
+                for c in cards
+                if isinstance(c, dict) and "front" in c and "back" in c
+            ]
+    except Exception:
+        pass
+    return []
+
+
 def generate_card_suggestion(title: str = "", description: str = "", due_date: str | None = None) -> dict:
     """
     Suggest a better title, priority (1 high - 5 low), and short notes for a kanban card.

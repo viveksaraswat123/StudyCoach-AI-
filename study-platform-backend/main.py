@@ -188,6 +188,15 @@ def get_study_logs(db: DBSession, current_user: CurrentUser, limit: int = 10):
     return logs
 
 
+@app.delete("/api/logs/{log_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_study_log(log_id: int, db: DBSession, current_user: CurrentUser):
+    log = db.query(models.StudyLog).filter_by(id=log_id, user_id=current_user.id).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Log not found")
+    db.delete(log)
+    db.commit()
+
+
 @app.get("/api/dashboard/stats")
 def get_dashboard_stats(db: DBSession, current_user: CurrentUser):
     total_hours = db.query(func.sum(models.StudyLog.hours)).filter_by(user_id=current_user.id).scalar() or 0
@@ -508,3 +517,154 @@ def get_group_leaderboard(group_id: int, db: DBSession, current_user: CurrentUse
 @app.get("/health", tags=["health"])
 def health_check():
     return {"status": "online"}
+
+
+# ── FLASHCARD ENDPOINTS ──────────────────────────────────────────────────────
+
+def _deck_payload(deck, today):
+    due = sum(1 for c in deck.cards if c.next_review is None or c.next_review <= today)
+    return {
+        "id": deck.id,
+        "name": deck.name,
+        "description": deck.description,
+        "color": deck.color,
+        "created_at": deck.created_at,
+        "card_count": len(deck.cards),
+        "due_count": due,
+    }
+
+
+@app.post("/api/flashcards/decks", status_code=status.HTTP_201_CREATED)
+def create_deck(data: schemas.FlashcardDeckCreate, db: DBSession, current_user: CurrentUser):
+    deck = models.FlashcardDeck(
+        name=data.name,
+        description=data.description,
+        color=data.color or "#3b82f6",
+        user_id=current_user.id,
+    )
+    db.add(deck)
+    db.commit()
+    db.refresh(deck)
+    return _deck_payload(deck, datetime.utcnow().date())
+
+
+@app.get("/api/flashcards/decks")
+def list_decks(db: DBSession, current_user: CurrentUser):
+    decks = (
+        db.query(models.FlashcardDeck)
+        .filter_by(user_id=current_user.id)
+        .order_by(models.FlashcardDeck.created_at.desc())
+        .all()
+    )
+    today = datetime.utcnow().date()
+    return [_deck_payload(d, today) for d in decks]
+
+
+@app.delete("/api/flashcards/decks/{deck_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_deck(deck_id: int, db: DBSession, current_user: CurrentUser):
+    deck = db.query(models.FlashcardDeck).filter_by(id=deck_id, user_id=current_user.id).first()
+    if not deck:
+        raise HTTPException(status_code=404, detail="Deck not found")
+    db.delete(deck)
+    db.commit()
+
+
+@app.get("/api/flashcards/decks/{deck_id}/cards", response_model=list[schemas.FlashcardResponse])
+def get_deck_cards(deck_id: int, db: DBSession, current_user: CurrentUser):
+    deck = db.query(models.FlashcardDeck).filter_by(id=deck_id, user_id=current_user.id).first()
+    if not deck:
+        raise HTTPException(status_code=404, detail="Deck not found")
+    return deck.cards
+
+
+@app.post("/api/flashcards/decks/{deck_id}/cards", response_model=schemas.FlashcardResponse, status_code=status.HTTP_201_CREATED)
+def add_card(deck_id: int, data: schemas.FlashcardCreate, db: DBSession, current_user: CurrentUser):
+    deck = db.query(models.FlashcardDeck).filter_by(id=deck_id, user_id=current_user.id).first()
+    if not deck:
+        raise HTTPException(status_code=404, detail="Deck not found")
+    card = models.Flashcard(
+        front=data.front,
+        back=data.back,
+        deck_id=deck_id,
+        next_review=datetime.utcnow().date(),
+    )
+    db.add(card)
+    db.commit()
+    db.refresh(card)
+    return card
+
+
+@app.post("/api/flashcards/decks/{deck_id}/generate")
+def generate_deck_cards(deck_id: int, data: schemas.FlashcardGenerateRequest, db: DBSession, current_user: CurrentUser):
+    deck = db.query(models.FlashcardDeck).filter_by(id=deck_id, user_id=current_user.id).first()
+    if not deck:
+        raise HTTPException(status_code=404, detail="Deck not found")
+
+    generated = ai_service.generate_flashcards(data.topic, data.count)
+    if not generated:
+        raise HTTPException(status_code=500, detail="AI failed to generate flashcards. Try a more specific topic.")
+
+    today = datetime.utcnow().date()
+    new_cards = []
+    for item in generated:
+        card = models.Flashcard(front=item["front"], back=item["back"], deck_id=deck_id, next_review=today)
+        db.add(card)
+        new_cards.append(card)
+
+    db.commit()
+    for c in new_cards:
+        db.refresh(c)
+
+    return {"generated": len(new_cards), "cards": new_cards}
+
+
+@app.delete("/api/flashcards/cards/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_card(card_id: int, db: DBSession, current_user: CurrentUser):
+    card = (
+        db.query(models.Flashcard)
+        .join(models.FlashcardDeck)
+        .filter(models.Flashcard.id == card_id, models.FlashcardDeck.user_id == current_user.id)
+        .first()
+    )
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    db.delete(card)
+    db.commit()
+
+
+@app.post("/api/flashcards/cards/{card_id}/review")
+def review_card(card_id: int, data: schemas.FlashcardReview, db: DBSession, current_user: CurrentUser):
+    card = (
+        db.query(models.Flashcard)
+        .join(models.FlashcardDeck)
+        .filter(models.Flashcard.id == card_id, models.FlashcardDeck.user_id == current_user.id)
+        .first()
+    )
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    rating = data.rating
+    if rating < 3:
+        card.repetitions = 0
+        card.interval = 1
+    else:
+        if card.repetitions == 0:
+            card.interval = 1
+        elif card.repetitions == 1:
+            card.interval = 6
+        else:
+            card.interval = round(card.interval * card.ease_factor)
+        card.repetitions += 1
+
+    card.ease_factor = max(1.3, card.ease_factor + 0.1 - (5 - rating) * (0.08 + (5 - rating) * 0.02))
+    card.next_review = datetime.utcnow().date() + timedelta(days=card.interval)
+    db.commit()
+    db.refresh(card)
+
+    return {
+        "id": card.id,
+        "next_review": card.next_review,
+        "interval": card.interval,
+        "ease_factor": round(card.ease_factor, 2),
+        "repetitions": card.repetitions,
+    }

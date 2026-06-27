@@ -4,673 +4,496 @@ import { useEffect, useState, useRef } from "react";
 import API from "../api/client";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
-
 import {
-  Send,
-  ArrowLeft,
-  Loader2,
-  Brain,
-  MessageCircle,
-  AlertCircle,
-  Copy,
-  Check,
-  Sparkles,
-  Download,
-  FileText,
+  Send, Brain, AlertCircle, Copy, Check, Sparkles,
+  Download, FileText, Plus, Hash, ChevronRight,
 } from "lucide-react";
 
+// ── Typing indicator ──────────────────────────────────────────────────────────
+function TypingDots() {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="w-8 h-8 rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center shrink-0 mt-1">
+        <Sparkles size={13} className="text-blue-400" />
+      </div>
+      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl rounded-tl-sm px-5 py-4">
+        <div className="flex gap-1.5 items-center h-4">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              className="w-1.5 h-1.5 bg-neutral-500 rounded-full"
+              animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
+              transition={{ repeat: Infinity, duration: 1.1, delay: i * 0.18, ease: "easeInOut" }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Message bubble ────────────────────────────────────────────────────────────
+function MessageBubble({ msg, copiedId, onCopy }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-3"
+    >
+      {/* Question */}
+      <div className="flex justify-end">
+        <div className="max-w-[80%]">
+          <div className="flex items-center gap-2 justify-end mb-1.5">
+            <span className="text-xs text-neutral-600">
+              {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400">
+              {msg.topic}
+            </span>
+          </div>
+          <div className="bg-blue-600 text-white px-5 py-3.5 rounded-2xl rounded-tr-sm text-sm leading-relaxed">
+            {msg.question}
+          </div>
+        </div>
+      </div>
+
+      {/* Answer */}
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center shrink-0 mt-1">
+          <Sparkles size={13} className="text-blue-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl rounded-tl-sm p-5 relative group">
+            <div className="prose prose-invert prose-sm max-w-none text-neutral-200 overflow-hidden">
+              <ReactMarkdown
+                components={{
+                  h1: ({ ...p }) => <h1 className="text-xl font-bold mt-4 mb-2 text-white" {...p} />,
+                  h2: ({ ...p }) => <h2 className="text-lg font-bold mt-3 mb-2 text-white" {...p} />,
+                  h3: ({ ...p }) => <h3 className="text-base font-bold mt-2 mb-1 text-neutral-100" {...p} />,
+                  p:  ({ ...p }) => <p className="mb-3 leading-relaxed text-neutral-200" {...p} />,
+                  ul: ({ ...p }) => <ul className="list-disc list-inside mb-3 space-y-1 ml-2" {...p} />,
+                  ol: ({ ...p }) => <ol className="list-decimal list-inside mb-3 space-y-1 ml-2" {...p} />,
+                  li: ({ ...p }) => <li className="text-neutral-200 ml-2" {...p} />,
+                  blockquote: ({ ...p }) => (
+                    <blockquote className="border-l-4 border-blue-500/50 pl-4 py-1 my-3 text-neutral-400 italic" {...p} />
+                  ),
+                  strong: ({ ...p }) => <strong className="font-bold text-blue-300" {...p} />,
+                  code: ({ node, children, ...p }) => {
+                    const isBlock = node?.properties?.className != null;
+                    return isBlock ? (
+                      <code className="block bg-neutral-950 border border-neutral-800 px-4 py-3 rounded-xl text-cyan-300 font-mono text-xs overflow-x-auto my-3 whitespace-pre" {...p}>
+                        {children}
+                      </code>
+                    ) : (
+                      <code className="bg-neutral-950 px-1.5 py-0.5 rounded text-cyan-300 font-mono text-xs" {...p}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {msg.answer}
+              </ReactMarkdown>
+            </div>
+
+            {/* Copy button */}
+            <button
+              onClick={() => onCopy(msg.answer, msg.id)}
+              className="absolute top-4 right-4 p-2 rounded-lg text-neutral-600 hover:text-white hover:bg-neutral-800 transition-all opacity-0 group-hover:opacity-100"
+            >
+              {copiedId === msg.id
+                ? <Check size={14} className="text-emerald-400" />
+                : <Copy size={14} />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Suggestion chip ────────────────────────────────────────────────────────────
+const SUGGESTIONS = [
+  { topic: "Python",      q: "How do list comprehensions work?"           },
+  { topic: "Math",        q: "Explain the chain rule in calculus."        },
+  { topic: "History",     q: "What caused the fall of the Roman Empire?"  },
+  { topic: "Physics",     q: "What is the difference between work and energy?" },
+  { topic: "Biology",     q: "How does DNA replication work?"             },
+  { topic: "Chemistry",   q: "Explain ionic vs covalent bonds."           },
+];
+
+// ── Main component ─────────────────────────────────────────────────────────────
 export default function ChatTutor() {
   const navigate = useNavigate();
-  const [topic, setTopic] = useState("");
-  const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [showNewChat, setShowNewChat] = useState(true);
-  const [copiedId, setCopiedId] = useState(null);
-  const messagesEndRef = useRef(null);
-  // FIX 7: Removed unused chatContainerRef
-  const [exportingPdf, setExportingPdf] = useState(false);
+  const [messages, setMessages]         = useState([]);
+  const [topic, setTopic]               = useState("");
+  const [question, setQuestion]         = useState("");
+  const [loading, setLoading]           = useState(false);
+  const [historyLoading, setHistLoading] = useState(true);
+  const [error, setError]               = useState(null);
+  const [copiedId, setCopiedId]         = useState(null);
+  const [exportingPdf, setExportPdf]    = useState(false);
+  const [activeTopicFilter, setFilter]  = useState(null);
+  const endRef    = useRef(null);
+  const inputRef  = useRef(null);
 
-  useEffect(() => {
-    fetchChatHistory();
-  }, []);
+  useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const fetchChatHistory = async () => {
+  const fetchHistory = async () => {
     try {
-      const res = await API.get("/tutor/history");
-      if (res.data && res.data.length > 0) {
+      const { data } = await API.get("/tutor/history");
+      if (data?.length) {
         setMessages(
-          res.data.reverse().map((conv) => ({
-            id: conv.id,
-            topic: conv.topic,
-            question: conv.question,
-            answer: conv.answer,
-            timestamp: new Date(conv.created_at),
-            type: "history",
+          [...data].reverse().map((c) => ({
+            id: c.id, topic: c.topic, question: c.question,
+            answer: c.answer, timestamp: new Date(c.created_at),
           }))
         );
-        setShowNewChat(false);
       }
-    } catch (err) {
-      console.error("Failed to load chat history:", err);
-    } finally {
-      setHistoryLoading(false);
-    }
+    } catch {}
+    setHistLoading(false);
   };
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-
+  const send = async (e) => {
+    e?.preventDefault();
     if (!topic.trim() || !question.trim() || loading) return;
-
-    // Frontend validation (matches backend schema)
-    if (question.trim().length < 10) {
-      setError("Question must be at least 10 characters.");
-      return;
-    }
+    if (question.trim().length < 10) { setError("Question must be at least 10 characters."); return; }
 
     setLoading(true);
-    setError(null); // FIX 8: Clear error before every new request
-
+    setError(null);
     try {
-      const res = await API.post("/tutor/ask", {
+      const { data } = await API.post("/tutor/ask", {
         topic: topic.trim(),
         question: question.trim(),
       });
-
-      const newMessage = {
-        id: res.data.id,
-        topic: res.data.topic,
-        question: res.data.question,
-        answer: res.data.answer,
-        timestamp: new Date(res.data.created_at),
-        type: "sent",
-      };
-
-      setMessages((prev) => [...prev, newMessage]);
-      // FIX 2: Only hide the welcome screen after a successful response
-      setShowNewChat(false);
+      setMessages((prev) => [
+        ...prev,
+        { id: data.id, topic: data.topic, question: data.question,
+          answer: data.answer, timestamp: new Date(data.created_at) },
+      ]);
       setQuestion("");
+      inputRef.current?.focus();
     } catch (err) {
-      let message = "Failed to get response. Please try again.";
-
-      if (err.response?.data?.detail) {
-        const detail = err.response.data.detail;
-
-        if (Array.isArray(detail)) {
-          message = detail[0]?.msg || message;
-        } else if (typeof detail === "string") {
-          message = detail;
-        }
-      }
-
-      setError(message);
-      // FIX 2: Do NOT hide welcome screen if request failed and there are no messages
-      if (messages.length > 0) {
-        setShowNewChat(false);
-      }
+      const d = err.response?.data?.detail;
+      setError(typeof d === "string" ? d : Array.isArray(d) ? d[0]?.msg : "Failed to get a response.");
     } finally {
       setLoading(false);
     }
   };
 
-  // FIX 1: Separate keyboard handler that submits the form properly
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey && !loading) {
-      e.preventDefault();
-      handleSendMessage(e);
-    }
+  const handleKey = (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !loading) { e.preventDefault(); send(e); }
   };
 
-  const startNewChat = () => {
-    setTopic("");
-    setQuestion("");
-    setShowNewChat(true);
-    setMessages([]);
-    setError(null);
-  };
-
-  const copyToClipboard = (text, id) => {
+  const copy = (text, id) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const exportChatAsText = () => {
-    if (messages.length === 0) return;
-
-    let chatText = "STUDY TUTOR CHAT EXPORT\n";
-    chatText += `Exported on: ${new Date().toLocaleString()}\n`;
-    chatText += "=".repeat(60) + "\n\n";
-
-    messages.forEach((msg, idx) => {
-      chatText += `Question ${idx + 1}:\n`;
-      chatText += `Topic: ${msg.topic}\n`;
-      chatText += `Q: ${msg.question}\n\n`;
-      chatText += `Answer:\n${msg.answer}\n`;
-      chatText += "-".repeat(60) + "\n\n";
-    });
-
-    const element = document.createElement("a");
-    element.setAttribute(
-      "href",
-      "data:text/plain;charset=utf-8," + encodeURIComponent(chatText)
-    );
-    element.setAttribute(
-      "download",
-      `study-tutor-chat-${new Date().getTime()}.txt`
-    );
-    element.style.display = "none";
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+  const newChat = () => {
+    setMessages([]); setTopic(""); setQuestion(""); setError(null); setFilter(null);
   };
 
-  const exportChatAsPdf = async () => {
-    if (messages.length === 0) return;
+  const loadSuggestion = (s) => { setTopic(s.topic); setQuestion(s.q); inputRef.current?.focus(); };
 
-    setExportingPdf(true);
+  // Unique topics for sidebar
+  const topicList = [...new Set(messages.map((m) => m.topic))];
+  const displayed = activeTopicFilter
+    ? messages.filter((m) => m.topic === activeTopicFilter)
+    : messages;
 
+  const exportText = () => {
+    if (!messages.length) return;
+    const text = messages.map((m, i) =>
+      `Q${i + 1} [${m.topic}]\n${m.question}\n\nAnswer:\n${m.answer}\n\n${"─".repeat(60)}\n`
+    ).join("\n");
+    const a = document.createElement("a");
+    a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(`StudyCoach AI Tutor Export\n${"=".repeat(60)}\n\n${text}`);
+    a.download = `tutor-chat-${Date.now()}.txt`;
+    a.click();
+  };
+
+  const exportPdf = async () => {
+    if (!messages.length) return;
+    setExportPdf(true);
     try {
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const W = doc.internal.pageSize.getWidth();
+      const H = doc.internal.pageSize.getHeight();
+      const mg = 14;
+      let y = mg;
+      const next = () => { doc.addPage(); y = mg; };
 
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 12;
-      const contentWidth = pageWidth - 2 * margin;
-      let y = margin;
+      doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 100, 220);
+      doc.text("StudyCoach — AI Tutor Export", mg, y); y += 9;
+      doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120);
+      doc.text(`Exported ${new Date().toLocaleString()}`, mg, y); y += 8;
+      doc.setDrawColor(200); doc.line(mg, y, W - mg, y); y += 8;
 
-      // FIX 5: Use explicit font name "helvetica" instead of undefined
-      const addNewPage = () => {
-        doc.addPage();
-        y = margin;
-      };
+      for (const [i, m] of messages.entries()) {
+        doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 100, 220);
+        if (y + 8 > H - 18) next();
+        doc.text(`Q${i + 1}  ${m.topic}`, mg, y); y += 7;
 
-      // Header on first page
-      doc.setFontSize(18);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(0, 102, 204);
-      doc.text("Study Tutor Chat Export", margin, y);
-      y += 10;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(40);
+        const qL = doc.splitTextToSize(m.question, W - mg * 2);
+        if (y + qL.length * 4 > H - 24) next();
+        doc.text(qL, mg, y); y += qL.length * 4 + 5;
 
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(100);
-      doc.text(`Exported on: ${new Date().toLocaleString()}`, margin, y);
-      y += 8;
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(30, 100, 220);
+        if (y + 6 > H - 18) next();
+        doc.text("Answer:", mg, y); y += 6;
 
-      doc.setDrawColor(200);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 10;
-
-      doc.setTextColor(0);
-
-      messages.forEach((msg, idx) => {
-        const questionLabel = `Q${idx + 1}. ${msg.topic}`;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(0, 102, 204);
-
-        if (y + 8 > pageHeight - 20) addNewPage();
-
-        doc.text(questionLabel, margin, y);
-        y += 8;
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(40);
-        const qLines = doc.splitTextToSize(msg.question, contentWidth - 4);
-
-        if (y + qLines.length * 4 > pageHeight - 30) addNewPage();
-
-        doc.text(qLines, margin + 2, y);
-        y += qLines.length * 4 + 5;
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(0, 102, 204);
-
-        if (y + 8 > pageHeight - 25) addNewPage();
-
-        doc.text("Answer:", margin, y);
-        y += 8;
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        doc.setTextColor(50);
-        const ansLines = doc.splitTextToSize(msg.answer, contentWidth - 4);
-
-        let answerY = y;
-        for (let i = 0; i < ansLines.length; i++) {
-          if (answerY + 4 > pageHeight - 15) {
-            addNewPage();
-            answerY = y;
-          }
-          doc.text(ansLines[i], margin + 2, answerY);
-          answerY += 4;
-        }
-
-        y = answerY + 5;
-
-        if (y + 8 > pageHeight - 15) addNewPage();
-
-        doc.setFontSize(7);
-        doc.setTextColor(150);
-        doc.text(msg.timestamp.toLocaleString(), margin, y);
-        y += 8;
-
-        if (y + 3 > pageHeight - 15) addNewPage();
-
-        doc.setDrawColor(220);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 8;
-      });
-
-      doc.save(`study-tutor-chat-${new Date().getTime()}.pdf`);
-    } catch (err) {
-      console.error("PDF export failed:", err);
-      alert("Failed to export PDF. Please try again.");
-    } finally {
-      setExportingPdf(false);
-    }
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(50);
+        const aL = doc.splitTextToSize(m.answer, W - mg * 2 - 2);
+        for (const line of aL) { if (y + 4 > H - 14) next(); doc.text(line, mg + 2, y); y += 4; }
+        y += 6;
+        if (y + 2 > H - 14) next();
+        doc.setDrawColor(220); doc.line(mg, y, W - mg, y); y += 8;
+      }
+      doc.save(`tutor-chat-${Date.now()}.pdf`);
+    } catch {}
+    setExportPdf(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 text-neutral-100 flex flex-col">
-      {/* HEADER */}
-      <header className="sticky top-0 z-40 bg-neutral-900/80 backdrop-blur-md border-b border-neutral-800/50">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 py-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="p-2 text-neutral-400 hover:text-white transition-colors hover:bg-neutral-800 rounded-lg flex-shrink-0"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <div className="min-w-0">
-                <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2 truncate">
-                  <Brain size={24} className="text-blue-400 flex-shrink-0" />
-                  <span className="hidden sm:inline">AI Tutor</span>
-                </h1>
-                <p className="text-neutral-500 text-xs md:text-sm">
-                  Learn anything, anytime
-                </p>
-              </div>
-            </div>
+    <div className="flex h-screen bg-neutral-950 text-neutral-100 overflow-hidden">
 
-            {/* EXPORT BUTTONS */}
-            {messages.length > 0 && (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={exportChatAsText}
-                  className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-all flex items-center gap-1 text-xs md:text-sm font-medium"
-                  title="Export as Text"
-                >
-                  <FileText size={18} />
-                  <span className="hidden sm:inline">Export</span>
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={exportChatAsPdf}
-                  disabled={exportingPdf}
-                  className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-all flex items-center gap-1 text-xs md:text-sm font-medium disabled:opacity-50"
-                  title="Download as PDF"
-                >
-                  {exportingPdf ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <Download size={18} />
-                  )}
-                  <span className="hidden sm:inline">PDF</span>
-                </motion.button>
-
-                <motion.button
-                  onClick={startNewChat}
-                  className="text-xs md:text-sm text-neutral-400 hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-neutral-800 whitespace-nowrap"
-                >
-                  New Chat
-                </motion.button>
-              </div>
-            )}
-
-            {messages.length === 0 && (
-              <motion.button
-                onClick={startNewChat}
-                className="text-xs md:text-sm text-neutral-400 hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-neutral-800 whitespace-nowrap flex-shrink-0"
-              >
-                New Chat
-              </motion.button>
-            )}
+      {/* ── LEFT: Topics sidebar ── */}
+      <aside className="w-64 bg-neutral-900/50 border-r border-neutral-800 hidden lg:flex flex-col">
+        {/* Logo */}
+        <div className="flex items-center gap-3 p-6 pb-5 border-b border-neutral-800">
+          <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
+            <Brain size={15} className="text-white" />
           </div>
+          <span className="font-bold tracking-tight">AI Tutor</span>
         </div>
-      </header>
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-y-auto px-4 md:px-6 py-6 md:py-8">
-        <div className="max-w-3xl mx-auto w-full">
-          {historyLoading ? (
-            <div className="flex items-center justify-center h-96">
-              <motion.div
-                animate={{ opacity: [0.4, 0.7, 0.4] }}
-                transition={{ repeat: Infinity, duration: 1.5 }}
-                className="text-center"
-              >
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 2 }}
-                  className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg mx-auto mb-4 flex items-center justify-center"
-                >
-                  <Brain size={24} className="text-white" />
-                </motion.div>
-                <p className="text-neutral-500">Loading chat history...</p>
-              </motion.div>
-            </div>
-          ) : (
+        {/* New chat */}
+        <div className="p-4">
+          <button
+            onClick={newChat}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white text-sm font-semibold transition-all"
+          >
+            <Plus size={15} /> New Chat
+          </button>
+        </div>
+
+        {/* Topics list */}
+        <div className="flex-1 overflow-y-auto px-3 pb-4">
+          {topicList.length > 0 && (
             <>
-              {/* ERROR MESSAGE */}
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-start gap-3"
-                >
-                  <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
-                  <span>{error}</span>
-                </motion.div>
-              )}
-
-              {/* MESSAGES */}
-              {messages.length > 0 ? (
-                <div className="space-y-4 md:space-y-6 mb-8 w-full">
-                  {/* FIX 4: Added mode="popLayout" to AnimatePresence */}
-                  <AnimatePresence mode="popLayout">
-                    {messages.map((msg, idx) => (
-                      <motion.div
-                        key={msg.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ delay: idx * 0.05 }}
-                        className="space-y-3 md:space-y-4 w-full"
-                      >
-                        {/* QUESTION */}
-                        <div className="flex justify-end w-full">
-                          <div className="max-w-xs md:max-w-md lg:max-w-2xl min-w-0">
-                            <div className="text-xs text-neutral-500 mb-2 px-4">
-                              <span className="inline-block px-2 py-1 bg-blue-500/20 text-blue-300 rounded-md font-medium break-words">
-                                {msg.topic}
-                              </span>
-                            </div>
-                            <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 md:p-5 rounded-2xl rounded-tr-sm shadow-lg break-words">
-                              <p className="text-white text-sm md:text-base leading-relaxed break-words">
-                                {msg.question}
-                              </p>
-                              <p className="text-xs text-blue-100 mt-3 opacity-75">
-                                {msg.timestamp.toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* ANSWER */}
-                        <div className="flex justify-start">
-                          <div className="max-w-xs md:max-w-md lg:max-w-2xl w-full min-w-0">
-                            <div className="flex items-center gap-2 mb-2 px-4">
-                              <div className="w-6 h-6 md:w-7 md:h-7 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-full flex items-center justify-center flex-shrink-0">
-                                <Sparkles size={14} className="text-neutral-950" />
-                              </div>
-                              <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide">
-                                AI Tutor
-                              </span>
-                            </div>
-                            <div className="bg-neutral-800/50 border border-neutral-700/50 p-4 md:p-5 rounded-2xl rounded-tl-sm backdrop-blur-sm relative group overflow-hidden">
-                              <div className="prose prose-invert prose-sm md:prose-base max-w-none text-neutral-200 overflow-hidden">
-                                {/* FIX 6: Updated code component to not use deprecated inline prop */}
-                                <ReactMarkdown
-                                  components={{
-                                    h1: ({ node, ...props }) => (
-                                      <h1
-                                        className="text-xl md:text-2xl font-bold mt-4 mb-2 text-white break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                    h2: ({ node, ...props }) => (
-                                      <h2
-                                        className="text-lg md:text-xl font-bold mt-3 mb-2 text-white break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                    h3: ({ node, ...props }) => (
-                                      <h3
-                                        className="text-base md:text-lg font-bold mt-2 mb-1 text-neutral-100 break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                    p: ({ node, ...props }) => (
-                                      <p
-                                        className="mb-3 leading-relaxed text-neutral-200 break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                    ul: ({ node, ...props }) => (
-                                      <ul
-                                        className="list-disc list-inside mb-3 space-y-1 ml-2 break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                    ol: ({ node, ...props }) => (
-                                      <ol
-                                        className="list-decimal list-inside mb-3 space-y-1 ml-2 break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                    li: ({ node, ...props }) => (
-                                      <li
-                                        className="text-neutral-200 ml-2 break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                    code: ({ node, children, ...props }) => {
-                                      const isInline =
-                                        !node?.position ||
-                                        node?.type !== "element" ||
-                                        node?.tagName !== "code" ||
-                                        node?.properties?.className == null;
-                                      return isInline ? (
-                                        <code
-                                          className="bg-neutral-900 px-2 py-1 rounded text-cyan-300 font-mono text-xs md:text-sm break-all"
-                                          {...props}
-                                        >
-                                          {children}
-                                        </code>
-                                      ) : (
-                                        <code
-                                          className="block bg-neutral-900/50 border border-neutral-700 p-3 rounded-lg text-cyan-300 font-mono text-xs md:text-sm overflow-x-auto my-3 whitespace-pre-wrap break-words"
-                                          {...props}
-                                        >
-                                          {children}
-                                        </code>
-                                      );
-                                    },
-                                    blockquote: ({ node, ...props }) => (
-                                      <blockquote
-                                        className="border-l-4 border-blue-500 pl-4 py-1 my-3 text-neutral-300 italic break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                    strong: ({ node, ...props }) => (
-                                      <strong
-                                        className="font-bold text-blue-300 break-words"
-                                        {...props}
-                                      />
-                                    ),
-                                  }}
-                                >
-                                  {msg.answer}
-                                </ReactMarkdown>
-                              </div>
-
-                              {/* COPY BUTTON */}
-                              <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() =>
-                                  copyToClipboard(msg.answer, msg.id)
-                                }
-                                className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-white hover:bg-neutral-700/50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                              >
-                                {copiedId === msg.id ? (
-                                  <Check size={16} className="text-green-400" />
-                                ) : (
-                                  <Copy size={16} />
-                                )}
-                              </motion.button>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                  <div ref={messagesEndRef} />
-                </div>
-              ) : showNewChat ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-center py-12 md:py-16 w-full px-4"
-                >
-                  <motion.div
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="w-16 md:w-20 h-16 md:h-20 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl mx-auto mb-6 flex items-center justify-center border border-blue-500/30"
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600 px-2 mb-2">
+                Topics
+              </p>
+              <div className="space-y-0.5">
+                {topicList.map((t) => {
+                  const count = messages.filter((m) => m.topic === t).length;
+                  const active = activeTopicFilter === t;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setFilter(active ? null : t)}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm transition-all text-left ${
+                        active
+                          ? "bg-blue-500/15 text-white border border-blue-500/25"
+                          : "text-neutral-400 hover:text-white hover:bg-neutral-800/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Hash size={13} className="shrink-0 opacity-50" />
+                        <span className="truncate font-medium">{t}</span>
+                      </div>
+                      <span className="text-xs text-neutral-600 shrink-0">{count}</span>
+                    </button>
+                  );
+                })}
+                {activeTopicFilter && (
+                  <button
+                    onClick={() => setFilter(null)}
+                    className="w-full text-xs text-neutral-600 hover:text-neutral-400 py-2 transition-colors"
                   >
-                    <Brain size={40} className="text-blue-400" />
-                  </motion.div>
-                  <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 break-words">
-                    Start Learning
-                  </h2>
-                  <p className="text-neutral-400 max-w-md mx-auto text-sm md:text-base leading-relaxed break-words">
-                    Ask me anything about topics you're studying. I'll explain
-                    concepts clearly and help you understand better.
-                  </p>
-
-                  {/* QUICK SUGGESTIONS */}
-                  <div className="mt-8 md:mt-10">
-                    <p className="text-xs md:text-sm text-neutral-500 mb-4 font-medium uppercase tracking-wide">
-                      Try asking about:
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto px-2 md:px-0">
-                      {[
-                        {
-                          topic: "Python",
-                          question: "How do list comprehensions work?",
-                        },
-                        {
-                          topic: "Math",
-                          question: "What is the chain rule in calculus?",
-                        },
-                        {
-                          topic: "History",
-                          question: "What caused the fall of Rome?",
-                        },
-                      ].map((suggestion, idx) => (
-                        <motion.button
-                          key={idx}
-                          whileHover={{ scale: 1.03, y: -2 }}
-                          onClick={() => {
-                            setTopic(suggestion.topic);
-                            setQuestion(suggestion.question);
-                          }}
-                          className="p-4 bg-neutral-800/50 border border-neutral-700/50 rounded-xl hover:border-blue-500/50 transition-all text-left hover:bg-neutral-800/80 group break-words"
-                        >
-                          <p className="text-xs text-blue-400 font-medium mb-1 group-hover:text-blue-300 break-words">
-                            {suggestion.topic}
-                          </p>
-                          <p className="text-xs md:text-sm text-neutral-300 group-hover:text-neutral-100 break-words">
-                            {suggestion.question}
-                          </p>
-                        </motion.button>
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
-              ) : null}
+                    Clear filter
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>
-      </main>
 
-      {/* INPUT FORM */}
-      <div className="sticky bottom-0 bg-gradient-to-t from-neutral-950 to-neutral-950/80 backdrop-blur-md border-t border-neutral-800/50 px-4 md:px-6 py-4 md:py-6">
-        <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSendMessage} className="space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                placeholder="What topic are you studying?"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                disabled={loading}
-                className="sm:w-32 bg-neutral-800/50 border border-neutral-700/50 rounded-xl px-4 py-3 text-sm md:text-base text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all disabled:opacity-50"
-              />
-              <div className="flex gap-2 flex-1">
-                <input
-                  type="text"
-                  placeholder="Ask your question..."
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  // FIX 1: Use dedicated keyboard handler to avoid double-submit
-                  onKeyDown={handleKeyDown}
-                  disabled={loading}
-                  className="flex-1 bg-neutral-800/50 border border-neutral-700/50 rounded-xl px-4 py-3 text-sm md:text-base text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all disabled:opacity-50"
-                />
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  type="submit"
-                  disabled={loading || !topic.trim() || !question.trim()}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 md:px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-blue-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 text-sm md:text-base"
-                >
-                  {loading ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <>
-                      <Send size={18} />
-                      <span className="hidden sm:inline">Ask</span>
-                    </>
-                  )}
-                </motion.button>
-              </div>
+        {/* Export */}
+        {messages.length > 0 && (
+          <div className="border-t border-neutral-800 p-4 space-y-1">
+            <button onClick={exportText} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-neutral-500 hover:text-white hover:bg-neutral-800 transition-all font-medium">
+              <FileText size={13} /> Export as Text
+            </button>
+            <button onClick={exportPdf} disabled={exportingPdf} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-neutral-500 hover:text-white hover:bg-neutral-800 transition-all font-medium disabled:opacity-40">
+              <Download size={13} /> {exportingPdf ? "Generating PDF…" : "Download PDF"}
+            </button>
+          </div>
+        )}
+
+        {/* Back to dashboard */}
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="flex items-center gap-2 px-6 py-4 border-t border-neutral-800 text-xs text-neutral-600 hover:text-white transition-colors"
+        >
+          <ChevronRight size={13} className="rotate-180" /> Dashboard
+        </button>
+      </aside>
+
+      {/* ── RIGHT: Main chat ── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+        {/* Mobile header */}
+        <header className="lg:hidden border-b border-neutral-800 px-5 py-4 flex items-center justify-between bg-neutral-900/50">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate("/dashboard")} className="p-1.5 text-neutral-500 hover:text-white transition-colors">
+              <ChevronRight size={16} className="rotate-180" />
+            </button>
+            <div className="w-7 h-7 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
+              <Brain size={14} className="text-white" />
             </div>
-            <p className="text-xs text-neutral-500 text-center">
-              Press{" "}
-              <kbd className="px-2 py-1 bg-neutral-800 rounded text-neutral-300">
-                Enter
-              </kbd>{" "}
-              to send
-            </p>
-          </form>
+            <span className="font-bold text-sm">AI Tutor</span>
+          </div>
+          <button onClick={newChat} className="text-xs text-neutral-500 hover:text-white transition-colors">
+            New Chat
+          </button>
+        </header>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8">
+          <div className="max-w-2xl mx-auto w-full">
+
+            {/* Error */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="mb-5 flex items-start gap-3 p-4 bg-red-500/8 border border-red-500/20 rounded-xl text-red-400 text-sm"
+                >
+                  <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {historyLoading ? (
+              <div className="flex flex-col items-center justify-center h-80 gap-3">
+                <div className="w-8 h-8 border-2 border-neutral-700 border-t-blue-500 rounded-full animate-spin" />
+                <p className="text-xs text-neutral-600 uppercase tracking-widest">Loading history</p>
+              </div>
+            ) : displayed.length === 0 && !loading ? (
+              /* Empty state */
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center pt-16 pb-8"
+              >
+                <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-2xl mx-auto mb-6 flex items-center justify-center">
+                  <Brain size={28} className="text-blue-400" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Ask me anything</h2>
+                <p className="text-neutral-500 text-sm max-w-sm mx-auto mb-10">
+                  Set your topic, type a question, and get a clear, detailed explanation instantly.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s.q}
+                      onClick={() => loadSuggestion(s)}
+                      className="flex items-start gap-3 p-4 bg-neutral-900/40 border border-neutral-800 rounded-xl hover:border-neutral-700 hover:bg-neutral-900/60 transition-all text-left group"
+                    >
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-500/15 text-blue-400 shrink-0">
+                        {s.topic}
+                      </span>
+                      <p className="text-sm text-neutral-400 group-hover:text-neutral-200 transition-colors leading-relaxed">
+                        {s.q}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            ) : (
+              <div className="space-y-8">
+                <AnimatePresence mode="popLayout">
+                  {displayed.map((msg) => (
+                    <MessageBubble
+                      key={msg.id}
+                      msg={msg}
+                      copiedId={copiedId}
+                      onCopy={copy}
+                    />
+                  ))}
+                </AnimatePresence>
+                {loading && <TypingDots />}
+                <div ref={endRef} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Input area ── */}
+        <div className="border-t border-neutral-800 bg-neutral-950/80 backdrop-blur-md px-4 md:px-8 py-5">
+          <div className="max-w-2xl mx-auto">
+            <form onSubmit={send}>
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl focus-within:border-neutral-700 transition-colors overflow-hidden">
+
+                {/* Topic row */}
+                <div className="flex items-center gap-3 px-4 pt-3 pb-2 border-b border-neutral-800/60">
+                  <Hash size={13} className="text-neutral-600 shrink-0" />
+                  <input
+                    type="text"
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="Topic  (e.g. Python, Biology…)"
+                    disabled={loading}
+                    className="flex-1 bg-transparent text-xs text-neutral-300 placeholder-neutral-600 focus:outline-none disabled:opacity-50 font-medium"
+                  />
+                  {topic && (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400 shrink-0">
+                      {topic}
+                    </span>
+                  )}
+                </div>
+
+                {/* Question row */}
+                <div className="flex items-end gap-3 px-4 py-3">
+                  <textarea
+                    ref={inputRef}
+                    rows={2}
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    onKeyDown={handleKey}
+                    placeholder="Ask your question…"
+                    disabled={loading}
+                    className="flex-1 bg-transparent text-sm text-white placeholder-neutral-600 focus:outline-none resize-none disabled:opacity-50 leading-relaxed"
+                    style={{ minHeight: "44px", maxHeight: "140px" }}
+                  />
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    type="submit"
+                    disabled={loading || !topic.trim() || !question.trim()}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0"
+                  >
+                    <Send size={15} />
+                  </motion.button>
+                </div>
+              </div>
+
+              <p className="text-center text-xs text-neutral-700 mt-3">
+                <kbd className="px-1.5 py-0.5 bg-neutral-800 rounded text-neutral-500 text-[11px]">Enter</kbd>
+                {" "}to send · {" "}
+                <kbd className="px-1.5 py-0.5 bg-neutral-800 rounded text-neutral-500 text-[11px]">Shift+Enter</kbd>
+                {" "}for newline
+              </p>
+            </form>
+          </div>
         </div>
       </div>
     </div>

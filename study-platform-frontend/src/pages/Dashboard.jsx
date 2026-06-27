@@ -12,12 +12,13 @@ import {
   Brain,
   LogOut,
   Bell,
-  // FIX 1: Removed unused Menu and X imports
   ArrowRight,
   Users,
   MessageSquare,
   AlertCircle,
   User,
+  Timer,
+  BookMarked,
 } from "lucide-react";
 
 import {
@@ -123,7 +124,7 @@ export default function Dashboard() {
           />
           <SidebarItem
             icon={<MessageSquare size={18} />}
-            label="AI Tutor"
+            label="Tutor"
             onClick={() => navigate("/tutor")}
           />
           <SidebarItem
@@ -133,6 +134,16 @@ export default function Dashboard() {
           />
           {/* FIX 8: Added Profile link to sidebar — the Profile page exists
               but was not reachable from the dashboard navigation */}
+          <SidebarItem
+            icon={<Timer size={18} />}
+            label="Pomodoro"
+            onClick={() => navigate("/pomodoro")}
+          />
+          <SidebarItem
+            icon={<BookMarked size={18} />}
+            label="Flashcards"
+            onClick={() => navigate("/flashcards")}
+          />
           <SidebarItem
             icon={<User size={18} />}
             label="Profile"
@@ -208,38 +219,56 @@ export default function Dashboard() {
           </AnimatePresence>
 
           {/* QUICK ACCESS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate("/tutor")}
-              className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 p-6 rounded-2xl text-left hover:border-purple-500/50 transition-all"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <MessageSquare size={28} className="text-purple-400" />
-                <ArrowRight size={18} className="text-purple-400" />
-              </div>
-              <h3 className="text-lg font-bold">AI Tutor</h3>
-              <p className="text-neutral-400 text-sm mt-1">
-                Ask questions and get expert guidance
-              </p>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate("/study-groups")}
-              className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 p-6 rounded-2xl text-left hover:border-emerald-500/50 transition-all"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <Users size={28} className="text-emerald-400" />
-                <ArrowRight size={18} className="text-emerald-400" />
-              </div>
-              <h3 className="text-lg font-bold">Study Groups</h3>
-              <p className="text-neutral-400 text-sm mt-1">
-                Connect with peers and compete on leaderboards
-              </p>
-            </motion.button>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+            {[
+              {
+                icon: <MessageSquare size={22} className="text-purple-400" />,
+                label: "AI Tutor",
+                desc: "Ask anything",
+                path: "/tutor",
+                border: "border-purple-500/20 hover:border-purple-500/40",
+                bg: "from-purple-500/10 to-purple-600/10",
+              },
+              {
+                icon: <Users size={22} className="text-emerald-400" />,
+                label: "Study Groups",
+                desc: "Compete & collab",
+                path: "/study-groups",
+                border: "border-emerald-500/20 hover:border-emerald-500/40",
+                bg: "from-emerald-500/10 to-emerald-600/10",
+              },
+              {
+                icon: <Timer size={22} className="text-orange-400" />,
+                label: "Pomodoro",
+                desc: "Focus timer",
+                path: "/pomodoro",
+                border: "border-orange-500/20 hover:border-orange-500/40",
+                bg: "from-orange-500/10 to-orange-600/10",
+              },
+              {
+                icon: <BookMarked size={22} className="text-blue-400" />,
+                label: "Flashcards",
+                desc: "Spaced repetition",
+                path: "/flashcards",
+                border: "border-blue-500/20 hover:border-blue-500/40",
+                bg: "from-blue-500/10 to-blue-600/10",
+              },
+            ].map((item) => (
+              <motion.button
+                key={item.path}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => navigate(item.path)}
+                className={`bg-gradient-to-br ${item.bg} border ${item.border} p-5 rounded-2xl text-left transition-all`}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  {item.icon}
+                  <ArrowRight size={14} className="text-neutral-600" />
+                </div>
+                <p className="font-bold text-sm">{item.label}</p>
+                <p className="text-neutral-500 text-xs mt-0.5">{item.desc}</p>
+              </motion.button>
+            ))}
           </div>
 
           {/* KPI GRID */}

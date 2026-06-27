@@ -7,6 +7,7 @@ load_dotenv()
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
+#DB_URL error handling 
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -18,7 +19,7 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
-    pool_recycle=300,
+    pool_recycle=300, 
     future=True
 )
 
