@@ -1,11 +1,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* You can keep your custom styles below this */
-
 body {
   font-family: 'Inter', sans-serif;
-  @apply bg-slate-50 text-slate-900;
+}
+
+/* ── Light mode: flip the neutral scale ──
+   Pages use bg-neutral-950 / text-neutral-100 as dark/light defaults.
+   In .light we remap those CSS vars so 950 becomes near-white and
+   100 becomes near-black — every page flips without touching component code. */
+html.light {
+  --color-neutral-950: oklch(0.985 0 0);
+  --color-neutral-900: oklch(0.965 0 0);
+  --color-neutral-800: oklch(0.915 0 0);
+  --color-neutral-700: oklch(0.845 0 0);
+  --color-neutral-600: oklch(0.62  0 0);
+  --color-neutral-500: oklch(0.52  0 0);
+  --color-neutral-400: oklch(0.43  0 0);
+  --color-neutral-300: oklch(0.34  0 0);
+  --color-neutral-200: oklch(0.265 0 0);
+  --color-neutral-100: oklch(0.19  0 0);
+  --color-neutral-50:  oklch(0.125 0 0);
+}
+
+/* Smooth theme crossfade (Framer Motion uses inline styles, so this won't conflict) */
+html {
+  transition: background-color 0.2s ease;
 }
 
 .glass-morphism {

@@ -7,8 +7,8 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Suspense, lazy, useEffect, useState } from "react";
-import { Brain } from "lucide-react";
+import { Suspense, lazy, useEffect, useState, createContext, useContext } from "react";
+import { Brain, Sun, Moon } from "lucide-react";
 
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
@@ -25,23 +25,55 @@ const Flashcards = lazy(() => import("./pages/Flashcards"));
 const StudyLogs = lazy(() => import("./pages/StudyLogs"));
 const Performance = lazy(() => import("./pages/Performance"));
 
-const ProtectedRoute = ({ children }) => {
-  const location = useLocation();
-  const token = localStorage.getItem("token");
-  if (!token) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  return children;
-};
+// ── Theme ──────────────────────────────────────────────────────────────────
+const ThemeCtx = createContext({ theme: "dark", toggleTheme: () => {} });
+export const useTheme = () => useContext(ThemeCtx);
 
-const ScrollToTop = () => {
-  const { pathname } = useLocation();
+function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("theme") || "dark"
+  );
+
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-  return null;
-};
+    document.documentElement.classList.toggle("light", theme === "light");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+
+  return (
+    <ThemeCtx.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeCtx.Provider>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <motion.button
+      whileTap={{ scale: 0.88 }}
+      onClick={toggleTheme}
+      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      className="fixed bottom-6 right-6 z-50 w-11 h-11 flex items-center justify-center rounded-full bg-neutral-800 border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-600 shadow-xl transition-colors"
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={theme}
+          initial={{ rotate: -30, opacity: 0, scale: 0.7 }}
+          animate={{ rotate: 0, opacity: 1, scale: 1 }}
+          exit={{ rotate: 30, opacity: 0, scale: 0.7 }}
+          transition={{ duration: 0.18 }}
+          style={{ display: "flex" }}
+        >
+          {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+        </motion.span>
+      </AnimatePresence>
+    </motion.button>
+  );
+}
+
+// ── Loading screen ─────────────────────────────────────────────────────────
 const LOAD_TIPS = [
   "Syncing your study data…",
   "Preparing your workspace…",
@@ -95,7 +127,6 @@ const Ring = ({ size, duration, reverse, color, dots, delay = 0 }) => (
 
 const LoadingScreen = () => {
   const [tip, setTip] = useState(0);
-
   useEffect(() => {
     const id = setInterval(() => setTip((t) => (t + 1) % LOAD_TIPS.length), 2000);
     return () => clearInterval(id);
@@ -103,7 +134,6 @@ const LoadingScreen = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-neutral-950 select-none overflow-hidden">
-      {/* Ambient background glow */}
       <div
         style={{
           position: "absolute",
@@ -114,30 +144,19 @@ const LoadingScreen = () => {
           pointerEvents: "none",
         }}
       />
-
-      {/* Orbital system */}
       <div style={{ position: "relative", width: 180, height: 180, marginBottom: 48 }}>
-        {/* Outer ring — emerald, 1 dot, slow */}
         <Ring size={180} duration={7}   reverse={false} color="#10b981" dots={1} />
-        {/* Middle ring — purple, 2 dots, reverse */}
         <Ring size={130} duration={4.5} reverse={true}  color="#a855f7" dots={2} delay={0.3} />
-        {/* Inner ring — blue, 3 dots, fast */}
         <Ring size={82}  duration={2.8} reverse={false} color="#3b82f6" dots={3} delay={0.6} />
-
-        {/* Center icon */}
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <motion.div
             animate={{ scale: [1, 1.1, 1] }}
             transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
             style={{
-              width: 48,
-              height: 48,
-              borderRadius: 14,
+              width: 48, height: 48, borderRadius: 14,
               background: "linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.05))",
               border: "1px solid rgba(59,130,246,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              display: "flex", alignItems: "center", justifyContent: "center",
               boxShadow: "0 0 24px rgba(59,130,246,0.25)",
             }}
           >
@@ -145,8 +164,6 @@ const LoadingScreen = () => {
           </motion.div>
         </div>
       </div>
-
-      {/* Wordmark */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -157,8 +174,6 @@ const LoadingScreen = () => {
           StudyCoach
         </span>
       </motion.div>
-
-      {/* Cycling tip */}
       <AnimatePresence mode="wait">
         <motion.p
           key={tip}
@@ -175,9 +190,22 @@ const LoadingScreen = () => {
   );
 };
 
+// ── Misc ───────────────────────────────────────────────────────────────────
+const ProtectedRoute = ({ children }) => {
+  const location = useLocation();
+  const token = localStorage.getItem("token");
+  if (!token) return <Navigate to="/login" state={{ from: location }} replace />;
+  return children;
+};
+
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+};
+
 const NotFound = () => {
   const navigate = useNavigate();
-
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-neutral-950 text-white px-6 text-center">
       <h1 className="text-8xl font-black opacity-10 mb-[-1rem]">404</h1>
@@ -186,25 +214,22 @@ const NotFound = () => {
         The requested node is unavailable or has been moved to another sector.
       </p>
       <div className="flex gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="px-6 py-2 border border-neutral-800 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all"
-        >
+        <button onClick={() => navigate(-1)}
+          className="px-6 py-2 border border-neutral-800 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all">
           Go Back
         </button>
-        <button
-          onClick={() => navigate("/", { replace: true })}
-          className="px-6 py-2 border border-neutral-800 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all"
-        >
+        <button onClick={() => navigate("/", { replace: true })}
+          className="px-6 py-2 border border-neutral-800 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all">
           Go Home
         </button>
       </div>
     </div>
   );
 };
+
+// ── Routes ─────────────────────────────────────────────────────────────────
 const AnimatedRoutes = () => {
   const location = useLocation();
-
   return (
     <>
       <ScrollToTop />
@@ -212,95 +237,24 @@ const AnimatedRoutes = () => {
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<Home />} />
-            <Route path="/profile" element={<Profile/>}/>
+            <Route path="/profile" element={<Profile />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/assessment"
-              element={
-                <ProtectedRoute>
-                  <Assessment />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/log-session"
-              element={
-                <ProtectedRoute>
-                  <LogSession />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/tutor"
-              element={
-                <ProtectedRoute>
-                  <ChatTutor />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/study-groups"
-              element={
-                <ProtectedRoute>
-                  <StudyGroups />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/kanban"
-              element={
-                <ProtectedRoute>
-                  <Kanban />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/pomodoro"
-              element={
-                <ProtectedRoute>
-                  <Pomodoro />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/flashcards"
-              element={
-                <ProtectedRoute>
-                  <Flashcards />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/logs"
-              element={
-                <ProtectedRoute>
-                  <StudyLogs />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/performance"
-              element={
-                <ProtectedRoute>
-                  <Performance />
-                </ProtectedRoute>
-              }
-            />
-
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/assessment" element={<ProtectedRoute><Assessment /></ProtectedRoute>} />
+            <Route path="/log-session" element={<ProtectedRoute><LogSession /></ProtectedRoute>} />
+            <Route path="/tutor" element={<ProtectedRoute><ChatTutor /></ProtectedRoute>} />
+            <Route path="/study-groups" element={<ProtectedRoute><StudyGroups /></ProtectedRoute>} />
+            <Route path="/kanban" element={<ProtectedRoute><Kanban /></ProtectedRoute>} />
+            <Route path="/pomodoro" element={<ProtectedRoute><Pomodoro /></ProtectedRoute>} />
+            <Route path="/flashcards" element={<ProtectedRoute><Flashcards /></ProtectedRoute>} />
+            <Route path="/logs" element={<ProtectedRoute><StudyLogs /></ProtectedRoute>} />
+            <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>
       </Suspense>
+      <ThemeToggle />
     </>
   );
 };
@@ -308,7 +262,9 @@ const AnimatedRoutes = () => {
 export default function App() {
   return (
     <Router>
-      <AnimatedRoutes />
+      <ThemeProvider>
+        <AnimatedRoutes />
+      </ThemeProvider>
     </Router>
   );
 }

@@ -5,6 +5,7 @@ import {
   LayoutDashboard, BookOpen, TrendingUp, Brain, LogOut,
   MessageSquare, Users, User, Play, Pause, RotateCcw,
   CheckCircle, Plus, Timer, BookMarked,
+  CloudRain, Music2, Wind, Volume2, VolumeX,
 } from "lucide-react";
 import API from "../api/client";
 
@@ -15,6 +16,63 @@ const MODES = {
   short:  { label: "Short Break", duration:  5 * 60, color: "#10b981" },
   long:   { label: "Long Break",  duration: 15 * 60, color: "#a855f7" },
 };
+
+const SOUNDS = [
+  { key: "rain",  label: "Rain",       icon: CloudRain, color: "#60a5fa" },
+  { key: "lofi",  label: "Lo-fi",      icon: Music2,    color: "#a78bfa" },
+  { key: "white", label: "White noise",icon: Wind,      color: "#34d399" },
+];
+
+// ── Web Audio noise generator ──────────────────────────────────────────────
+function buildNoiseGraph(ctx, type, gainNode) {
+  const bufferSize = ctx.sampleRate * 3;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+
+  if (type === "lofi") {
+    // Brown noise: warm, deep rumble
+    let last = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const w = Math.random() * 2 - 1;
+      data[i] = (last + 0.02 * w) / 1.02;
+      last = data[i];
+      data[i] *= 3.5;
+    }
+  } else {
+    // White noise base (used for both rain and white)
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  }
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  if (type === "rain") {
+    // Shape white noise into rain: highpass removes rumble, lowpass removes hiss
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 350;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 3800;
+    source.connect(hp);
+    hp.connect(lp);
+    lp.connect(gainNode);
+  } else if (type === "lofi") {
+    // Cut everything above 700 Hz — sounds like muffled distant music
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 700;
+    source.connect(lp);
+    lp.connect(gainNode);
+  } else {
+    // Pure white noise — no filtering
+    source.connect(gainNode);
+  }
+
+  gainNode.connect(ctx.destination);
+  return source;
+}
 
 export default function Pomodoro() {
   const navigate = useNavigate();
@@ -28,12 +86,19 @@ export default function Pomodoro() {
   const [logging, setLogging]     = useState(false);
   const tickRef = useRef(null);
 
+  // ── Ambient sound state ──
+  const [activeSound, setActiveSound] = useState(null);
+  const [volume, setVolume]           = useState(0.35);
+  const audioCtxRef  = useRef(null);
+  const sourceRef    = useRef(null);
+  const gainRef      = useRef(null);
+
   const cur = MODES[mode];
   const dashOffset = CIRCUMFERENCE * (1 - timeLeft / cur.duration);
-
   const fmt = (s) =>
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+  // ── Timer logic ───────────────────────────────────────────────────────────
   const beep = useCallback(() => {
     try {
       const ctx = new AudioContext();
@@ -64,7 +129,6 @@ export default function Pomodoro() {
     clearInterval(tickRef.current);
     setRunning(false);
     beep();
-
     if (mode === "focus") {
       const next = focusCount + 1;
       setFocusCount(next);
@@ -94,6 +158,53 @@ export default function Pomodoro() {
     return () => { document.title = "StudyCoach"; };
   });
 
+  // ── Ambient sound logic ───────────────────────────────────────────────────
+  const stopSound = useCallback(() => {
+    try { sourceRef.current?.stop(); } catch {}
+    sourceRef.current = null;
+  }, []);
+
+  const startSound = useCallback((type) => {
+    stopSound();
+    if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+      audioCtxRef.current = new AudioContext();
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === "suspended") ctx.resume();
+
+    const gain = ctx.createGain();
+    gain.gain.value = volume;
+    gainRef.current = gain;
+
+    const source = buildNoiseGraph(ctx, type, gain);
+    source.start();
+    sourceRef.current = source;
+  }, [volume, stopSound]);
+
+  const toggleSound = (key) => {
+    if (activeSound === key) {
+      stopSound();
+      setActiveSound(null);
+    } else {
+      startSound(key);
+      setActiveSound(key);
+    }
+  };
+
+  // Keep gain in sync when slider changes
+  useEffect(() => {
+    if (gainRef.current) gainRef.current.gain.value = volume;
+  }, [volume]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopSound();
+      audioCtxRef.current?.close().catch(() => {});
+    };
+  }, [stopSound]);
+
+  // ── Log session ───────────────────────────────────────────────────────────
   const logSession = async () => {
     if (!topic.trim() || logging) return;
     setLogging(true);
@@ -124,14 +235,14 @@ export default function Pomodoro() {
           StudyCoach
         </div>
         <nav className="space-y-1.5 flex-1">
-          <SidebarItem icon={<LayoutDashboard size={18} />} label="Dashboard" onClick={() => navigate("/dashboard")} />
-          <SidebarItem icon={<BookOpen size={18} />}        label="Study Logs" onClick={() => navigate("/log-session")} />
-          <SidebarItem icon={<TrendingUp size={18} />}      label="Performance" onClick={() => navigate("/performance")} />
-          <SidebarItem icon={<Timer size={18} />}           label="Pomodoro" active />
-          <SidebarItem icon={<MessageSquare size={18} />}   label="AI Tutor" onClick={() => navigate("/tutor")} />
+          <SidebarItem icon={<LayoutDashboard size={18} />} label="Dashboard"    onClick={() => navigate("/dashboard")} />
+          <SidebarItem icon={<BookOpen size={18} />}        label="Study Logs"   onClick={() => navigate("/logs")} />
+          <SidebarItem icon={<TrendingUp size={18} />}      label="Performance"  onClick={() => navigate("/performance")} />
+          <SidebarItem icon={<Timer size={18} />}           label="Pomodoro"     active />
+          <SidebarItem icon={<MessageSquare size={18} />}   label="Tutor"        onClick={() => navigate("/tutor")} />
           <SidebarItem icon={<Users size={18} />}           label="Study Groups" onClick={() => navigate("/study-groups")} />
-          <SidebarItem icon={<BookMarked size={18} />}      label="Flashcards" onClick={() => navigate("/flashcards")} />
-          <SidebarItem icon={<User size={18} />}            label="Profile" onClick={() => navigate("/profile")} />
+          <SidebarItem icon={<BookMarked size={18} />}      label="Flashcards"   onClick={() => navigate("/flashcards")} />
+          <SidebarItem icon={<User size={18} />}            label="Profile"      onClick={() => navigate("/profile")} />
         </nav>
         <button
           onClick={() => { localStorage.removeItem("token"); navigate("/", { replace: true }); }}
@@ -176,15 +287,8 @@ export default function Pomodoro() {
 
               {/* SVG ring */}
               <div className="relative select-none">
-                <svg
-                  width="280"
-                  height="280"
-                  style={{ transform: "rotate(-90deg)" }}
-                  aria-hidden="true"
-                >
-                  {/* Track */}
+                <svg width="280" height="280" style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
                   <circle cx="140" cy="140" r="120" fill="none" stroke="#1c1c1c" strokeWidth="7" />
-                  {/* Progress */}
                   <circle
                     cx="140" cy="140" r="120"
                     fill="none"
@@ -199,13 +303,8 @@ export default function Pomodoro() {
                     }}
                   />
                 </svg>
-
-                {/* Center content */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span
-                    className="text-[3.75rem] font-bold leading-none tracking-tight"
-                    style={{ fontVariantNumeric: "tabular-nums" }}
-                  >
+                  <span className="text-[3.75rem] font-bold leading-none tracking-tight" style={{ fontVariantNumeric: "tabular-nums" }}>
                     {fmt(timeLeft)}
                   </span>
                   <span className="text-neutral-500 text-sm mt-2 font-medium">{cur.label}</span>
@@ -234,7 +333,6 @@ export default function Pomodoro() {
                 >
                   <RotateCcw size={18} />
                 </button>
-
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setRunning((r) => !r)}
@@ -249,7 +347,6 @@ export default function Pomodoro() {
                   {running ? <Pause size={22} fill="white" /> : <Play size={22} fill="white" />}
                   {running ? "Pause" : "Start"}
                 </motion.button>
-
                 <button
                   onClick={() => navigate("/log-session")}
                   aria-label="Log session manually"
@@ -276,6 +373,93 @@ export default function Pomodoro() {
 
             {/* ── RIGHT PANEL ── */}
             <div className="space-y-5">
+
+              {/* ── AMBIENT SOUNDS ── */}
+              <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl overflow-hidden">
+                <div className="px-6 py-5 border-b border-neutral-800 flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-sm">Ambient Sound</p>
+                    <p className="text-neutral-500 text-xs mt-0.5">
+                      {activeSound ? `Playing ${SOUNDS.find(s => s.key === activeSound)?.label}` : "Off"}
+                    </p>
+                  </div>
+                  {activeSound && (
+                    <motion.div
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ repeat: Infinity, duration: 1.8 }}
+                      className="w-2 h-2 rounded-full"
+                      style={{ background: SOUNDS.find(s => s.key === activeSound)?.color }}
+                    />
+                  )}
+                </div>
+
+                {/* Sound buttons */}
+                <div className="p-4 flex flex-col gap-2">
+                  {SOUNDS.map(({ key, label, icon: Icon, color }) => {
+                    const isActive = activeSound === key;
+                    return (
+                      <motion.button
+                        key={key}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => toggleSound(key)}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-left ${
+                          isActive
+                            ? "text-white border"
+                            : "text-neutral-500 hover:text-neutral-300 bg-neutral-900/60 border border-transparent hover:border-neutral-800"
+                        }`}
+                        style={isActive ? {
+                          background: `${color}18`,
+                          borderColor: `${color}40`,
+                          color,
+                        } : {}}
+                      >
+                        <Icon size={16} className="flex-shrink-0" style={isActive ? { color } : {}} />
+                        <span className="flex-1">{label}</span>
+                        {isActive && (
+                          <motion.div className="flex items-end gap-0.5 h-4" aria-hidden>
+                            {[0, 1, 2].map((i) => (
+                              <motion.div
+                                key={i}
+                                animate={{ scaleY: [0.3, 1, 0.3] }}
+                                transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.18, ease: "easeInOut" }}
+                                className="w-0.5 rounded-full origin-bottom"
+                                style={{ height: 12, background: color }}
+                              />
+                            ))}
+                          </motion.div>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+
+                {/* Volume slider */}
+                <div className="px-5 pb-5">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setVolume(v => v > 0 ? 0 : 0.35)}
+                      className="text-neutral-600 hover:text-neutral-400 transition-colors flex-shrink-0"
+                    >
+                      {volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={volume}
+                      onChange={(e) => setVolume(parseFloat(e.target.value))}
+                      disabled={!activeSound}
+                      className="flex-1 h-1 appearance-none rounded-full cursor-pointer accent-blue-500 disabled:opacity-30"
+                      style={{ background: `linear-gradient(to right, #3b82f6 ${volume * 100}%, #262626 ${volume * 100}%)` }}
+                    />
+                    <span className="text-neutral-700 text-xs w-7 text-right tabular-nums">
+                      {Math.round(volume * 100)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Session log */}
               <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-neutral-800">
@@ -286,7 +470,7 @@ export default function Pomodoro() {
                       : `${history.length} block${history.length > 1 ? "s" : ""} · ${history.length * 25} min`}
                   </p>
                 </div>
-                <div className="divide-y divide-neutral-800/60 max-h-60 overflow-y-auto">
+                <div className="divide-y divide-neutral-800/60 max-h-48 overflow-y-auto">
                   {history.length === 0 ? (
                     <p className="px-6 py-8 text-neutral-600 text-sm text-center">
                       Complete a session to see it here
@@ -357,7 +541,6 @@ export default function Pomodoro() {
               <p className="text-neutral-500 text-sm mb-6">
                 25 minutes done. Log what you studied to keep your streak alive.
               </p>
-
               <label className="block text-xs font-semibold uppercase tracking-widest text-neutral-500 mb-2">
                 What did you study?
               </label>
@@ -370,7 +553,6 @@ export default function Pomodoro() {
                 placeholder="e.g. Calculus, React Hooks, History…"
                 className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-neutral-500 transition-colors mb-6"
               />
-
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowModal(false)}
