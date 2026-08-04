@@ -230,6 +230,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const [profile, setProfile]         = useState(null);
   const [stats, setStats]             = useState(null);
+  const [badges, setBadges]           = useState(null);
   const [loading, setLoading]         = useState(true);
   const [pageError, setPageError]     = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -238,12 +239,14 @@ export default function Profile() {
     (async () => {
       setLoading(true);
       try {
-        const [pRes, sRes] = await Promise.all([
+        const [pRes, sRes, bRes] = await Promise.all([
           API.get("/users/me"),
           API.get("/users/me/stats"),
+          API.get("/badges"),
         ]);
         setProfile(pRes.data);
         setStats(sRes.data);
+        setBadges(bRes.data);
       } catch (err) {
         const d = err.response?.data?.detail;
         setPageError(typeof d === "string" ? d : "Failed to load profile.");
@@ -485,6 +488,53 @@ export default function Profile() {
                   Your password is hashed and never stored in plain text.
                 </p>
               </motion.div>
+
+              {/* Badges */}
+              {badges && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-6"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <ChevronRight size={14} className="text-neutral-500" />
+                      <span className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Badges</span>
+                    </div>
+                    <span className="text-xs font-bold text-neutral-500">
+                      {badges.earned_count} / {badges.total}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {badges.badges.map((badge, i) => (
+                      <motion.div
+                        key={badge.id}
+                        initial={{ opacity: 0, scale: 0.85 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.28 + i * 0.03 }}
+                        title={`${badge.name}: ${badge.desc}`}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
+                          badge.earned
+                            ? "border-neutral-700 bg-neutral-800/50"
+                            : "border-neutral-800/50 bg-neutral-900/20 opacity-35 grayscale"
+                        }`}
+                      >
+                        <span className="text-2xl leading-none">{badge.emoji}</span>
+                        <p className="text-xs font-semibold text-center leading-tight">{badge.name}</p>
+                        {badge.earned && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                  {badges.earned_count < badges.total && (
+                    <p className="text-xs text-neutral-700 mt-4 text-center">
+                      Hover a badge to see how to unlock it
+                    </p>
+                  )}
+                </motion.div>
+              )}
 
               {/* Level benefits */}
               <motion.div

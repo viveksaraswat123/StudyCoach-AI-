@@ -24,6 +24,8 @@ const Pomodoro = lazy(() => import("./pages/Pomodoro"));
 const Flashcards = lazy(() => import("./pages/Flashcards"));
 const StudyLogs = lazy(() => import("./pages/StudyLogs"));
 const Performance = lazy(() => import("./pages/Performance"));
+const Notes = lazy(() => import("./pages/Notes"));
+const StudyCalendar = lazy(() => import("./pages/StudyCalendar"));
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 const ThemeCtx = createContext({ theme: "dark", toggleTheme: () => {} });
@@ -250,6 +252,8 @@ const AnimatedRoutes = () => {
             <Route path="/flashcards" element={<ProtectedRoute><Flashcards /></ProtectedRoute>} />
             <Route path="/logs" element={<ProtectedRoute><StudyLogs /></ProtectedRoute>} />
             <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
+            <Route path="/notes" element={<ProtectedRoute><Notes /></ProtectedRoute>} />
+            <Route path="/calendar" element={<ProtectedRoute><StudyCalendar /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>

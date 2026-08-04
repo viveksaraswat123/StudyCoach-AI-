@@ -19,6 +19,9 @@ import {
   User,
   Timer,
   BookMarked,
+  Target,
+  Trash2,
+  X,
 } from "lucide-react";
 
 import {
@@ -38,18 +41,26 @@ export default function Dashboard() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [goalsData, setGoalsData] = useState(null);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+
+  const fetchGoals = async () => {
+    try {
+      const res = await API.get("/goals/progress");
+      setGoalsData(res.data);
+    } catch {}
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // FIX 3: Removed console.log statements that leak user data to the
-        // browser console in production
         const [statsRes, logsRes] = await Promise.all([
           API.get("/dashboard/stats"),
           API.get("/logs?limit=5"),
         ]);
         setStats(statsRes.data);
         setLogs(logsRes.data);
+        fetchGoals();
         setError(null);
       } catch (err) {
         // FIX 4: Removed console.error leak of full error object
@@ -307,6 +318,82 @@ export default function Dashboard() {
             />
           </div>
 
+          {/* WEEKLY GOALS */}
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Target size={18} className="text-blue-400" /> Weekly Goals
+                </h3>
+                <p className="text-neutral-500 text-xs mt-0.5">
+                  {goalsData?.week_start ? `Week of ${goalsData.week_start}` : "Hours target per subject"}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowGoalModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-400 hover:text-white border border-neutral-800 hover:border-neutral-700 rounded-xl transition-all"
+              >
+                <Plus size={13} /> Manage
+              </button>
+            </div>
+
+            {!goalsData?.goals?.length ? (
+              <div className="bg-neutral-900/40 border border-neutral-800 border-dashed rounded-2xl p-8 text-center">
+                <Target size={28} className="text-neutral-700 mx-auto mb-2" />
+                <p className="text-neutral-600 text-sm">No goals set yet</p>
+                <button onClick={() => setShowGoalModal(true)} className="mt-2 text-blue-400 text-xs hover:text-blue-300 font-semibold">
+                  Set your first goal →
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                {goalsData.goals.map((goal) => {
+                  const pct = Math.min(1, goal.current_hours / goal.weekly_hours_target);
+                  const r = 28; const circ = 2 * Math.PI * r;
+                  const done = pct >= 1;
+                  return (
+                    <motion.div
+                      key={goal.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-5 flex items-center gap-4 hover:border-neutral-700 transition-all min-w-[200px]"
+                    >
+                      <div className="relative flex-shrink-0">
+                        <svg width={72} height={72} style={{ transform: "rotate(-90deg)" }}>
+                          <circle cx={36} cy={36} r={r} fill="none" stroke="#262626" strokeWidth={5} />
+                          <motion.circle
+                            cx={36} cy={36} r={r}
+                            fill="none"
+                            stroke={done ? "#10b981" : "#3b82f6"}
+                            strokeWidth={5}
+                            strokeLinecap="round"
+                            strokeDasharray={circ}
+                            initial={{ strokeDashoffset: circ }}
+                            animate={{ strokeDashoffset: circ * (1 - pct) }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                            style={{ filter: done ? "drop-shadow(0 0 6px #10b98170)" : "drop-shadow(0 0 6px #3b82f670)" }}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-xs font-bold" style={{ color: done ? "#10b981" : "#3b82f6" }}>
+                            {Math.round(pct * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{goal.subject}</p>
+                        <p className="text-neutral-500 text-xs mt-0.5">
+                          {goal.current_hours}h / {goal.weekly_hours_target}h
+                        </p>
+                        {done && <p className="text-emerald-400 text-xs mt-0.5 font-semibold">✓ Complete!</p>}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* ACTIVITY CHART */}
             <section className="lg:col-span-2 bg-neutral-900/40 border border-neutral-800 p-8 rounded-2xl backdrop-blur-sm hover:border-neutral-700 transition-colors">
@@ -468,6 +555,15 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+      {/* GOAL MODAL */}
+      <AnimatePresence>
+        {showGoalModal && (
+          <GoalModal
+            onClose={() => setShowGoalModal(false)}
+            onRefresh={fetchGoals}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -538,5 +634,110 @@ function DashboardSkeleton() {
         </p>
       </motion.div>
     </div>
+  );
+}
+
+function GoalModal({ onClose, onRefresh }) {
+  const [goals, setGoals] = useState([]);
+  const [subject, setSubject] = useState("");
+  const [hours, setHours] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    API.get("/goals").then((r) => setGoals(r.data)).catch(() => {});
+  }, []);
+
+  const addGoal = async (e) => {
+    e.preventDefault();
+    if (!subject.trim() || !hours) return;
+    setSaving(true); setErr(null);
+    try {
+      const res = await API.post("/goals", {
+        subject: subject.trim(),
+        weekly_hours_target: parseFloat(hours),
+      });
+      setGoals((g) => [...g, res.data]);
+      setSubject(""); setHours("");
+      onRefresh();
+    } catch (e) {
+      setErr(e?.response?.data?.detail || "Failed to save");
+    } finally { setSaving(false); }
+  };
+
+  const deleteGoal = async (id) => {
+    setDeletingId(id);
+    try {
+      await API.delete(`/goals/${id}`);
+      setGoals((g) => g.filter((x) => x.id !== id));
+      onRefresh();
+    } catch {}
+    setDeletingId(null);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 w-full max-w-md"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold flex items-center gap-2"><Target size={18} className="text-blue-400" /> Weekly Goals</h2>
+          <button onClick={onClose} className="text-neutral-600 hover:text-white transition-colors"><X size={18} /></button>
+        </div>
+
+        {/* existing goals */}
+        {goals.length > 0 && (
+          <div className="space-y-2 mb-6">
+            {goals.map((g) => (
+              <div key={g.id} className="flex items-center justify-between bg-neutral-800/50 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold">{g.subject}</p>
+                  <p className="text-xs text-neutral-500">{g.weekly_hours_target}h / week</p>
+                </div>
+                <button
+                  onClick={() => deleteGoal(g.id)}
+                  disabled={deletingId === g.id}
+                  className="text-neutral-600 hover:text-red-400 transition-colors p-1.5 disabled:opacity-40"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {err && <p className="text-red-400 text-xs mb-4">{err}</p>}
+
+        <form onSubmit={addGoal} className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-neutral-500">Add New Goal</p>
+          <input
+            value={subject} onChange={(e) => setSubject(e.target.value)}
+            placeholder="Subject (e.g. Mathematics)"
+            className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-700 focus:outline-none focus:border-neutral-600 transition-colors"
+          />
+          <div className="flex gap-3">
+            <input
+              type="number" min="0.5" max="168" step="0.5"
+              value={hours} onChange={(e) => setHours(e.target.value)}
+              placeholder="Hours / week"
+              className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-700 focus:outline-none focus:border-neutral-600 transition-colors"
+            />
+            <button
+              type="submit" disabled={!subject.trim() || !hours || saving}
+              className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
+            >
+              {saving ? "…" : "Add"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
   );
 }

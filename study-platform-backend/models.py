@@ -52,6 +52,16 @@ class User(Base):
         back_populates="owner",
         cascade="all, delete-orphan",
     )
+    goals = relationship(
+        "StudyGoal",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
+    notes = relationship(
+        "StudyNote",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
 
 
 class StudyLog(Base):
@@ -134,6 +144,35 @@ class GroupSession(Base):
 
     group = relationship("StudyGroup", back_populates="sessions")
     creator = relationship("User")
+
+
+class StudyGoal(Base):
+    __tablename__ = "study_goals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    subject = Column(String, nullable=False)
+    weekly_hours_target = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=dt.utcnow, nullable=False)
+
+    owner = relationship("User", back_populates="goals")
+    __table_args__ = (UniqueConstraint("user_id", "subject", name="uq_user_goal_subject"),)
+
+
+class StudyNote(Base):
+    __tablename__ = "study_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String, nullable=False)
+    content = Column(Text, default="", nullable=False)
+    tags = Column(String, nullable=True)
+    log_id = Column(Integer, ForeignKey("study_logs.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=dt.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=dt.utcnow, onupdate=dt.utcnow, nullable=False)
+
+    owner = relationship("User", back_populates="notes")
+    log = relationship("StudyLog")
 
 
 class KanbanBoard(Base):

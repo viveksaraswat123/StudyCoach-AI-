@@ -896,3 +896,254 @@ def review_card(card_id: int, data: schemas.FlashcardReview, db: DBSession, curr
         "ease_factor": round(card.ease_factor, 2),
         "repetitions": card.repetitions,
     }
+
+# ── STUDY GOALS ──────────────────────────────────────────────────────────────
+
+@app.get("/api/goals/progress")
+def get_goals_progress(db: DBSession, current_user: CurrentUser):
+    from datetime import date, timedelta
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+
+    goals = db.query(models.StudyGoal).filter_by(user_id=current_user.id).all()
+    if not goals:
+        return {"goals": [], "week_start": str(week_start)}
+
+    subjects = [g.subject for g in goals]
+    hours_this_week = (
+        db.query(models.StudyLog.topic, func.sum(models.StudyLog.hours))
+        .filter(
+            models.StudyLog.user_id == current_user.id,
+            models.StudyLog.study_date >= week_start,
+        )
+        .group_by(models.StudyLog.topic)
+        .all()
+    )
+    hours_by_topic = {topic.lower(): float(h) for topic, h in hours_this_week}
+
+    result = []
+    for g in goals:
+        current = sum(v for k, v in hours_by_topic.items() if g.subject.lower() in k or k in g.subject.lower())
+        result.append({
+            "id": g.id,
+            "subject": g.subject,
+            "weekly_hours_target": g.weekly_hours_target,
+            "current_hours": round(current, 2),
+        })
+
+    return {"goals": result, "week_start": str(week_start)}
+
+
+@app.get("/api/goals")
+def get_goals(db: DBSession, current_user: CurrentUser):
+    goals = db.query(models.StudyGoal).filter_by(user_id=current_user.id).order_by(models.StudyGoal.created_at).all()
+    return [{"id": g.id, "subject": g.subject, "weekly_hours_target": g.weekly_hours_target} for g in goals]
+
+
+@app.post("/api/goals", status_code=status.HTTP_201_CREATED)
+def create_goal(data: schemas.StudyGoalCreate, db: DBSession, current_user: CurrentUser):
+    existing = db.query(models.StudyGoal).filter_by(user_id=current_user.id, subject=data.subject).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A goal for this subject already exists")
+    goal = models.StudyGoal(
+        user_id=current_user.id,
+        subject=data.subject,
+        weekly_hours_target=data.weekly_hours_target,
+    )
+    db.add(goal)
+    db.commit()
+    db.refresh(goal)
+    return {"id": goal.id, "subject": goal.subject, "weekly_hours_target": goal.weekly_hours_target}
+
+
+@app.delete("/api/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_goal(goal_id: int, db: DBSession, current_user: CurrentUser):
+    goal = db.query(models.StudyGoal).filter_by(id=goal_id, user_id=current_user.id).first()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    db.delete(goal)
+    db.commit()
+
+
+# ── STUDY NOTES ──────────────────────────────────────────────────────────────
+
+@app.get("/api/notes")
+def get_notes(db: DBSession, current_user: CurrentUser, q: str = ""):
+    query = db.query(models.StudyNote).filter_by(user_id=current_user.id)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            models.StudyNote.title.ilike(like) |
+            models.StudyNote.content.ilike(like) |
+            models.StudyNote.tags.ilike(like)
+        )
+    notes = query.order_by(models.StudyNote.updated_at.desc()).all()
+    return [
+        {
+            "id": n.id,
+            "title": n.title,
+            "content": n.content,
+            "tags": n.tags,
+            "log_id": n.log_id,
+            "created_at": n.created_at,
+            "updated_at": n.updated_at,
+        }
+        for n in notes
+    ]
+
+
+@app.post("/api/notes", status_code=status.HTTP_201_CREATED)
+def create_note(data: schemas.StudyNoteCreate, db: DBSession, current_user: CurrentUser):
+    note = models.StudyNote(
+        user_id=current_user.id,
+        title=data.title,
+        content=data.content,
+        tags=data.tags,
+        log_id=data.log_id,
+    )
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return {
+        "id": note.id, "title": note.title, "content": note.content,
+        "tags": note.tags, "log_id": note.log_id,
+        "created_at": note.created_at, "updated_at": note.updated_at,
+    }
+
+
+@app.put("/api/notes/{note_id}")
+def update_note(note_id: int, data: schemas.StudyNoteUpdate, db: DBSession, current_user: CurrentUser):
+    note = db.query(models.StudyNote).filter_by(id=note_id, user_id=current_user.id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    if data.title is not None:
+        note.title = data.title
+    if data.content is not None:
+        note.content = data.content
+    if data.tags is not None:
+        note.tags = data.tags
+    if data.log_id is not None:
+        note.log_id = data.log_id
+    note.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(note)
+    return {
+        "id": note.id, "title": note.title, "content": note.content,
+        "tags": note.tags, "log_id": note.log_id,
+        "created_at": note.created_at, "updated_at": note.updated_at,
+    }
+
+
+@app.delete("/api/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_note(note_id: int, db: DBSession, current_user: CurrentUser):
+    note = db.query(models.StudyNote).filter_by(id=note_id, user_id=current_user.id).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    db.delete(note)
+    db.commit()
+
+
+# ── BADGES ───────────────────────────────────────────────────────────────────
+
+@app.get("/api/badges")
+def get_badges(db: DBSession, current_user: CurrentUser):
+    from datetime import date as dt_date, timedelta
+
+    total_logs    = db.query(func.count(models.StudyLog.id)).filter_by(user_id=current_user.id).scalar() or 0
+    total_hours   = float(db.query(func.sum(models.StudyLog.hours)).filter_by(user_id=current_user.id).scalar() or 0)
+    total_xp      = current_user.total_xp or 0
+    distinct_subj = db.query(func.count(func.distinct(models.StudyLog.topic))).filter_by(user_id=current_user.id).scalar() or 0
+    group_count   = len(current_user.study_groups)
+    flashcard_cnt = (
+        db.query(func.count(models.Flashcard.id))
+        .join(models.FlashcardDeck)
+        .filter(models.FlashcardDeck.user_id == current_user.id)
+        .scalar() or 0
+    )
+    notes_count = db.query(func.count(models.StudyNote.id)).filter_by(user_id=current_user.id).scalar() or 0
+
+    log_dates = set(
+        r[0] for r in
+        db.query(func.distinct(models.StudyLog.study_date)).filter_by(user_id=current_user.id).all()
+    )
+    streak = 0
+    d = dt_date.today()
+    while d in log_dates:
+        streak += 1
+        d -= timedelta(days=1)
+
+    BADGES = [
+        {"id": "first_step",   "name": "First Step",    "emoji": "🌱", "desc": "Log your first study session",       "earned": total_logs >= 1},
+        {"id": "hot_streak",   "name": "Hot Streak",    "emoji": "🔥", "desc": "Maintain a 7-day study streak",      "earned": streak >= 7},
+        {"id": "iron_will",    "name": "Iron Will",     "emoji": "💪", "desc": "Maintain a 30-day study streak",     "earned": streak >= 30},
+        {"id": "bookworm",     "name": "Bookworm",      "emoji": "📚", "desc": "Accumulate 10 total study hours",    "earned": total_hours >= 10},
+        {"id": "scholar",      "name": "Scholar",       "emoji": "🎓", "desc": "Accumulate 50 total study hours",    "earned": total_hours >= 50},
+        {"id": "century",      "name": "Century",       "emoji": "💯", "desc": "Accumulate 100 total study hours",   "earned": total_hours >= 100},
+        {"id": "team_player",  "name": "Team Player",   "emoji": "👥", "desc": "Join a study group",                "earned": group_count >= 1},
+        {"id": "flashmaster",  "name": "Flashmaster",   "emoji": "⚡", "desc": "Create 20+ flashcards",             "earned": flashcard_cnt >= 20},
+        {"id": "xp_hunter",    "name": "XP Hunter",     "emoji": "🏆", "desc": "Earn 300+ XP",                      "earned": total_xp >= 300},
+        {"id": "polymath",     "name": "Polymath",      "emoji": "🧠", "desc": "Study 5+ different subjects",        "earned": distinct_subj >= 5},
+        {"id": "note_taker",   "name": "Note Taker",    "emoji": "📝", "desc": "Write 5 or more notes",             "earned": notes_count >= 5},
+        {"id": "dedicated",    "name": "Dedicated",     "emoji": "🎯", "desc": "Log 50 or more study sessions",     "earned": total_logs >= 50},
+    ]
+    earned = sum(1 for b in BADGES if b["earned"])
+    return {"badges": BADGES, "earned_count": earned, "total": len(BADGES)}
+
+
+# ── STUDY CALENDAR ───────────────────────────────────────────────────────────
+
+@app.get("/api/calendar")
+def get_calendar(db: DBSession, current_user: CurrentUser, year: int = None, month: int = None):
+    from datetime import date as dt_date
+    import calendar as cal_mod
+
+    today = dt_date.today()
+    y = year or today.year
+    m = month or today.month
+
+    _, days_in_month = cal_mod.monthrange(y, m)
+    start = dt_date(y, m, 1)
+    end   = dt_date(y, m, days_in_month)
+
+    rows = (
+        db.query(models.StudyLog.study_date, func.sum(models.StudyLog.hours))
+        .filter(
+            models.StudyLog.user_id == current_user.id,
+            models.StudyLog.study_date >= start,
+            models.StudyLog.study_date <= end,
+        )
+        .group_by(models.StudyLog.study_date)
+        .all()
+    )
+    hours_by_day = {str(r[0]): float(r[1]) for r in rows}
+
+    days = []
+    for day in range(1, days_in_month + 1):
+        d_str = str(dt_date(y, m, day))
+        days.append({"date": d_str, "hours": hours_by_day.get(d_str, 0.0)})
+
+    total_days_active = len(hours_by_day)
+    total_hours = sum(hours_by_day.values())
+
+    # all-time heatmap (last 52 weeks) for contrib graph
+    heatmap_end   = today
+    heatmap_start = today.replace(year=today.year - 1)
+    heatmap_rows  = (
+        db.query(models.StudyLog.study_date, func.sum(models.StudyLog.hours))
+        .filter(
+            models.StudyLog.user_id == current_user.id,
+            models.StudyLog.study_date >= heatmap_start,
+        )
+        .group_by(models.StudyLog.study_date)
+        .all()
+    )
+    heatmap = {str(r[0]): float(r[1]) for r in heatmap_rows}
+
+    return {
+        "year": y,
+        "month": m,
+        "days": days,
+        "days_active": total_days_active,
+        "total_hours": round(total_hours, 2),
+        "heatmap": heatmap,
+    }

@@ -188,6 +188,43 @@ class KanbanSuggestionResponse(BaseModel):
     suggested_notes: Optional[str] = None
 
 
+# Goals
+class StudyGoalCreate(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=100)
+    weekly_hours_target: float = Field(..., gt=0, le=168)
+
+class StudyGoalResponse(ORMBase):
+    id: int
+    subject: str
+    weekly_hours_target: float
+    current_hours: float = 0.0
+
+class StudyGoalProgress(BaseModel):
+    goals: List[StudyGoalResponse]
+    week_start: str
+
+# Notes
+class StudyNoteCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    content: str = Field("", max_length=50000)
+    tags: Optional[str] = Field(None, max_length=200)
+    log_id: Optional[int] = None
+
+class StudyNoteUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    content: Optional[str] = Field(None, max_length=50000)
+    tags: Optional[str] = Field(None, max_length=200)
+    log_id: Optional[int] = None
+
+class StudyNoteResponse(ORMBase):
+    id: int
+    title: str
+    content: str
+    tags: Optional[str] = None
+    log_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
 # Group chat & sessions
 class GroupMessageCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=1000)
