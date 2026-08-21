@@ -6,6 +6,17 @@
 
 **[Live Demo](https://study-coach-ai-ashen.vercel.app)** · [Backend API Docs](https://study-coach-ai-ashen.vercel.app/docs)
 
+![StudyCoach hero](docs/screenshots/hero.png)
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" width="49%" alt="Dashboard" />
+  <img src="docs/screenshots/features.png" width="49%" alt="Features overview" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/pomodoro.png" width="49%" alt="Pomodoro focus timer" />
+  <img src="docs/screenshots/performance.png" width="49%" alt="Performance analytics" />
+</p>
+
 ---
 
 ## What it does
