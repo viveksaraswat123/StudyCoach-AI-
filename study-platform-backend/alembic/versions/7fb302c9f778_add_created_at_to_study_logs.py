@@ -52,7 +52,6 @@ def upgrade() -> None:
     op.alter_column('kanban_cards', 'column_id',
                existing_type=sa.INTEGER(),
                nullable=False)
-    op.drop_index(op.f('ix_kanban_cards_title'), table_name='kanban_cards')
     op.drop_constraint(op.f('kanban_cards_column_id_fkey'), 'kanban_cards', type_='foreignkey')
     op.create_foreign_key(None, 'kanban_cards', 'kanban_columns', ['column_id'], ['id'], ondelete='CASCADE')
     op.alter_column('kanban_columns', 'title',
@@ -181,7 +180,6 @@ def downgrade() -> None:
                nullable=True)
     op.drop_constraint(None, 'kanban_cards', type_='foreignkey')
     op.create_foreign_key(op.f('kanban_cards_column_id_fkey'), 'kanban_cards', 'kanban_columns', ['column_id'], ['id'])
-    op.create_index(op.f('ix_kanban_cards_title'), 'kanban_cards', ['title'], unique=False)
     op.alter_column('kanban_cards', 'column_id',
                existing_type=sa.INTEGER(),
                nullable=True)

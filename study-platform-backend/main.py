@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta
 from typing import Annotated
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from jose import JWTError, jwt
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import models
 import schemas
 import database
@@ -15,6 +18,10 @@ import kanban
 
 
 app = FastAPI(title="AI Study Platform", version="1.0.0", docs_url="/docs", redoc_url=None)
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.on_event("startup")
@@ -68,7 +75,8 @@ app.include_router(kanban.router, prefix="/api/kanban")
 
 
 @app.post("/api/register", response_model=schemas.Token, status_code=status.HTTP_201_CREATED)
-def register(user_data: schemas.UserCreate, db: DBSession):
+@limiter.limit("5/minute")
+def register(request: Request, user_data: schemas.UserCreate, db: DBSession):
     existing = db.query(models.User).filter_by(email=user_data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -88,7 +96,8 @@ def register(user_data: schemas.UserCreate, db: DBSession):
 
 
 @app.post("/api/login", response_model=schemas.Token)
-def login(db: DBSession, form_data: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("10/minute")
+def login(request: Request, db: DBSession, form_data: OAuth2PasswordRequestForm = Depends()):
     user = db.query(models.User).filter_by(email=form_data.username).first()
 
     if not user or not auth.verify_password(form_data.password, user.hashed_password):

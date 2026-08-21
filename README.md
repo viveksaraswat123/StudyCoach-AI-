@@ -1,6 +1,8 @@
 # StudyCoach AI
 
-> A full-stack study platform that combines AI-generated assessments, spaced repetition, focus timers, and gamification — built because most study apps track time but never check if you actually learned anything.
+> A full-stack study platform that combines AI-generated assessments, spaced repetition, focus timers, and gamification - built because most study apps track time but never check if you actually learned anything.
+
+[![Backend Tests](https://github.com/viveksaraswat123/StudyCoach-AI/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/viveksaraswat123/StudyCoach-AI/actions/workflows/backend-tests.yml)
 
 **[Live Demo](https://study-coach-ai-ashen.vercel.app)** · [Backend API Docs](https://study-coach-ai-ashen.vercel.app/docs)
 
@@ -15,9 +17,9 @@ StudyCoach is not a note-taking app or a simple tracker. It covers the full stud
 | **Study Logs** | Log sessions by topic, duration, and focus level. Track status from In Progress to Completed. |
 | **AI Assessments** | When you mark a topic ready, Gemini generates conceptual, application, and scenario-based questions. Answers are AI-evaluated with feedback and weak-topic detection. |
 | **Focus Timer** | Built-in Pomodoro timer with 25-minute work blocks, short and long breaks, and automatic session logging. |
-| **Flashcard Decks** | Create decks, add cards, and study with SM-2 spaced repetition — cards are scheduled based on how well you know them. |
+| **Flashcard Decks** | Create decks, add cards, and study with SM-2 spaced repetition - cards are scheduled based on how well you know them. |
 | **Study Groups** | Join or create groups, climb XP leaderboards, and stay accountable with peers. |
-| **Performance Charts** | Weekly study hours, focus breakdown, accuracy trends, and top subjects — all visualised on a dashboard. |
+| **Performance Charts** | Weekly study hours, focus breakdown, accuracy trends, and top subjects - all visualised on a dashboard. |
 | **Task Board** | Kanban-style board to organise assignments and study tasks from To Do to Done. |
 | **Gamification** | XP earned per session, consistency streaks, and badges for milestones. |
 
@@ -26,19 +28,19 @@ StudyCoach is not a note-taking app or a simple tracker. It covers the full stud
 ## Tech Stack
 
 **Backend**
-- FastAPI (Python) — async REST API
+- FastAPI (Python) - async REST API
 - PostgreSQL + SQLAlchemy ORM
-- Alembic — database migrations
+- Alembic - database migrations
 - JWT Authentication (bcrypt password hashing)
-- Gemini API — AI question generation and answer evaluation
+- Gemini API - AI question generation and answer evaluation
 
 **Frontend**
 - React.js
 - Tailwind CSS
-- Recharts — performance visualisation
+- Recharts - performance visualisation
 
 **Infrastructure**
-- Vercel — frontend deployment
+- Vercel - frontend deployment
 - Alembic migrations for schema versioning
 
 ---
@@ -155,7 +157,7 @@ pytest
 
 ## Why I built this
 
-I wanted a project that wasn't just a CRUD app. Most study tools track time — they don't close the loop on whether you actually understood anything. The AI assessment feature is the core: study → mark ready → get tested → see where you're weak → study that again. That feedback loop is what the app is built around.
+I wanted a project that wasn't just a CRUD app. Most study tools track time - they don't close the loop on whether you actually understood anything. The AI assessment feature is the core: study → mark ready → get tested → see where you're weak → study that again. That feedback loop is what the app is built around.
 
 The broader goal was to build something I'd actually use, and to practice full-stack development, AI integration, database design, and product thinking in one project.
 
@@ -163,5 +165,5 @@ The broader goal was to build something I'd actually use, and to practice full-s
 
 ## Contact
 
-**Vivek Saraswat** — Backend Developer & AI Engineer  
+**Vivek Saraswat** - Backend Developer & AI Engineer  
 [LinkedIn](https://www.linkedin.com/in/saraswat-vivek/) · [GitHub](https://github.com/viveksaraswat123) · viveksaraswat361@gmail.com

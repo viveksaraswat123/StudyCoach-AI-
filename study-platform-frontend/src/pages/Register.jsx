@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, Loader2, ArrowRight, AlertCircle, ShieldCheck } from "lucide-react";
+import { Mail, Lock, Loader2, ArrowRight, AlertCircle, ShieldCheck, ArrowLeft } from "lucide-react";
 import API from "../api/client";
 
 export default function Register() {
@@ -61,6 +61,13 @@ export default function Register() {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/10 blur-[120px] rounded-full" />
       </div>
+
+      <button
+        onClick={() => navigate(-1)}
+        className="absolute top-6 left-6 flex items-center gap-2 text-neutral-500 hover:text-white text-sm font-medium transition-colors"
+      >
+        <ArrowLeft size={18} /> Back
+      </button>
 
       <motion.div
         initial={{ opacity: 0, x: 20 }}
