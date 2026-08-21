@@ -18,15 +18,11 @@ export default function Assessment() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
-  // FIX 1: Track which option index the user actually clicked, separately from
-  // whether it was correct. The original code stored a boolean in selectedAnswer
-  // and used it to style options — but it could never highlight the *wrong*
-  // option the user picked (only correct ones were highlighted, and wrong ones
-  // were just dimmed globally). Now we track both.
+  // Tracks which option index the user clicked, separately from whether it
+  // was correct, so both the correct option and the specific wrong pick can be highlighted.
   const [selectedIndex, setSelectedIndex] = useState(null);
 
-  // FIX 2: Redirect to dashboard if no topic state is passed (e.g. direct URL
-  // access), preventing a crash when state is undefined
+  // Redirect to dashboard if no topic state is passed (e.g. direct URL access), preventing a crash when state is undefined
   useEffect(() => {
     if (!state?.topic) {
       navigate("/dashboard", { replace: true });
@@ -42,27 +38,21 @@ export default function Assessment() {
         setQuestions(res.data.questions);
       } catch (err) {
         console.error("Failed to generate questions");
-        // FIX 3: Stop loading spinner even when the API call fails, so the
-        // user isn't stuck on the loading screen forever
         setLoading(false);
       } finally {
         setLoading(false);
       }
     };
 
-    // FIX 4: Only fetch if topic exists (guards against the redirect case above
-    // firing the API call before the effect in FIX 2 runs)
+    // Only fetch if topic exists, guarding against the redirect effect above firing this call first
     if (state?.topic) {
       generateQuestions();
     }
   }, [state]);
 
   const handleAnswer = (isCorrect, idx) => {
-    // FIX 5: Guard uses selectedIndex instead of selectedAnswer (which was a
-    // boolean). Using a boolean meant handleAnswer(false) — a wrong answer —
-    // would pass the `!== null` check on the *next* click since false !== null
-    // is true, but the intent was to block any click after one answer was given.
-    // Using selectedIndex (a number | null) makes the guard unambiguous.
+    // Guard on selectedIndex (number | null) rather than a boolean, since a boolean
+    // "wrong answer" value would also satisfy a `!== null` check and fail to block further clicks
     if (selectedIndex !== null) return;
 
     setSelectedIndex(idx);
@@ -73,7 +63,6 @@ export default function Assessment() {
       if (currentIndex < questions.length - 1) {
         setCurrentIndex((i) => i + 1);
         setSelectedAnswer(null);
-        // FIX 6: Also reset selectedIndex on question advance
         setSelectedIndex(null);
       } else {
         setShowResult(true);
@@ -81,8 +70,7 @@ export default function Assessment() {
     }, 1200);
   };
 
-  // FIX 7: Handle empty questions array returned from API — show an error
-  // state instead of crashing on currentQ.question_text
+  // Handle empty questions array, since currentQ.question_text would otherwise crash below
   if (!loading && questions.length === 0) {
     return (
       <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 text-center">
@@ -104,8 +92,7 @@ export default function Assessment() {
     <FinalScore
       score={score}
       total={questions.length}
-      // FIX 8: onRetry used window.location.reload() which loses React state
-      // context and is brittle. Instead, reset all state variables in place.
+      // Reset state in place rather than reloading the page, to avoid losing React state
       onRetry={() => {
         setScore(0);
         setCurrentIndex(0);
@@ -183,10 +170,6 @@ export default function Assessment() {
                       ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
                       : ""}
                     ${
-                      // FIX 9: Highlight the specific wrong option the user
-                      // clicked in red, not just all non-correct options.
-                      // Original code dimmed ALL non-correct options identically,
-                      // making it unclear which one the user had selected.
                       selectedIndex === idx && !option.is_correct
                         ? "border-red-500/50 bg-red-500/10 text-red-400"
                         : selectedIndex !== null && !option.is_correct && selectedIndex !== idx
@@ -199,8 +182,6 @@ export default function Assessment() {
                   {selectedIndex !== null && option.is_correct && (
                     <CheckCircle2 size={20} />
                   )}
-                  {/* FIX 10: Show an XCircle on the specific wrong option the
-                      user picked, so feedback is clear */}
                   {selectedIndex === idx && !option.is_correct && (
                     <XCircle size={20} />
                   )}
@@ -245,10 +226,6 @@ function LoadingState({ topic }) {
   );
 }
 
-// FIX 11: XCircle was imported in the original file but only used in
-// sub-components that were defined after the main component. It was never
-// actually rendered in the button feedback — now it is (see FIX 10).
-// Also removed unused imports: ChevronRight, ArrowLeft, Loader2, Sparkles.
 function FinalScore({ score, total, onRetry }) {
   const navigate = useNavigate();
   const percentage = Math.round((score / total) * 100);

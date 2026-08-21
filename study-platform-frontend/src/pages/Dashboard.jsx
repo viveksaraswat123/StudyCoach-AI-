@@ -33,7 +33,6 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-// FIX 2: Removed unused BarChart and Bar imports from recharts
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -63,13 +62,10 @@ export default function Dashboard() {
         fetchGoals();
         setError(null);
       } catch (err) {
-        // FIX 4: Removed console.error leak of full error object
-
         if (err.response?.status === 401) {
           localStorage.removeItem("token");
           navigate("/login", { replace: true });
         } else {
-          // FIX 5: Normalize FastAPI error detail (string or array)
           const detail = err.response?.data?.detail;
           let message = "Failed to load dashboard";
           if (typeof detail === "string") message = detail;
@@ -97,15 +93,12 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    // FIX 6: Navigate with replace so the user can't navigate back to the
-    // dashboard after logging out
+    // Use replace so the user can't navigate back to the dashboard after logging out
     navigate("/", { replace: true });
   };
 
   if (loading) return <DashboardSkeleton />;
 
-  // FIX 7: Moved focusColors outside the render function — it's a static
-  // constant and was being re-created on every render cycle
   return (
     <div className="flex h-screen bg-neutral-950 text-neutral-100 overflow-hidden font-sans">
       {/* SIDEBAR */}
@@ -143,8 +136,6 @@ export default function Dashboard() {
             label="Study Groups"
             onClick={() => navigate("/study-groups")}
           />
-          {/* FIX 8: Added Profile link to sidebar — the Profile page exists
-              but was not reachable from the dashboard navigation */}
           <SidebarItem
             icon={<Timer size={18} />}
             label="Pomodoro"
@@ -183,8 +174,6 @@ export default function Dashboard() {
               <h1 className="text-4xl font-bold tracking-tight">
                 Welcome Back
               </h1>
-              {/* FIX 9: Guard against rendering nothing when stats.user is an
-                  empty string or undefined — show a neutral fallback */}
               <p className="text-neutral-500">
                 {stats?.user || "Loading your workspace…"}
               </p>
@@ -205,8 +194,6 @@ export default function Dashboard() {
           </header>
 
           {/* ERROR MESSAGE */}
-          {/* FIX 10: Added AlertCircle icon and dismiss button to error banner,
-              matching the style used across other pages in the codebase */}
           <AnimatePresence>
             {error && (
               <motion.div
@@ -447,8 +434,6 @@ export default function Dashboard() {
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
-                        // FIX 11: Added tickFormatter to label Y axis values
-                        // as hours (e.g. "2h") so the axis is self-explanatory
                         tickFormatter={(v) => `${v}h`}
                       />
                       <Tooltip
@@ -458,8 +443,7 @@ export default function Dashboard() {
                           borderRadius: "12px",
                         }}
                         itemStyle={{ color: "#3b82f6", fontSize: "12px" }}
-                        // FIX 12: Guard against non-numeric values crashing
-                        // toFixed() if the API returns null/undefined in chart_data
+                        // Guards against toFixed() crashing if the API returns null/undefined in chart_data
                         formatter={(value) =>
                           typeof value === "number"
                             ? `${value.toFixed(1)}h`
@@ -508,9 +492,7 @@ export default function Dashboard() {
                         <h4 className="font-bold text-neutral-100 truncate min-w-0">
                           {log.topic}
                         </h4>
-                        {/* FIX 13: Guard against log.focus_level being
-                            undefined — accessing .charAt(0) on undefined
-                            throws. Fall back to a neutral badge. */}
+                        {/* Guards against .charAt(0) throwing when log.focus_level is undefined */}
                         {log.focus_level && (
                           <span
                             className="px-2 py-1 rounded text-xs font-bold text-white flex-shrink-0"
@@ -526,8 +508,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-center justify-between text-sm text-neutral-500">
                         <span>{log.hours}h</span>
-                        {/* FIX 14: Guard against invalid dates — new Date(undefined)
-                            produces "Invalid Date" which renders as garbage text */}
+                        {/* Guards against new Date(undefined) rendering as "Invalid Date" */}
                         <span>
                           {log.study_date
                             ? new Date(log.study_date).toLocaleDateString()
@@ -568,8 +549,6 @@ export default function Dashboard() {
   );
 }
 
-// FIX 7: Moved focusColors to module scope — it's a static constant and
-// should not be re-created inside the component on every render
 const focusColors = {
   high: "#10b981",
   medium: "#f59e0b",
@@ -583,8 +562,6 @@ function SidebarItem({ icon, label, active = false, onClick }) {
     <motion.div
       whileHover={{ x: 4 }}
       onClick={onClick}
-      // FIX 15: Added role and keyboard support so sidebar items are
-      // accessible — they were clickable divs with no keyboard handling
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onClick?.()}

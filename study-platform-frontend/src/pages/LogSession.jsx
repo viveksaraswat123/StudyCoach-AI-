@@ -37,7 +37,7 @@ export default function LogSession() {
 
     navigate("/dashboard");
   } catch (error) {
-    console.log("ERROR DATA:", error.response?.data);
+    console.error("Failed to log study session:", error.response?.data);
   } finally {
     setLoading(false);
   }

@@ -58,8 +58,8 @@ log/
 uploads/
 media/
 
+.claude/
+
 docker-compose.override.yml
-.claude/
-.claude/
-.claude/
+
 study-platform-backend/alembic.ini

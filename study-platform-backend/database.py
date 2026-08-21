@@ -14,14 +14,12 @@ if DATABASE_URL.startswith("postgres://"):
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set")
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-    pool_recycle=300, 
-    future=True
-)
+engine_kwargs = {"pool_pre_ping": True, "pool_recycle": 300, "future": True}
+if not DATABASE_URL.startswith("sqlite"):
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
 
 SessionLocal = sessionmaker(
     bind=engine,

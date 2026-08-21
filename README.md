@@ -38,7 +38,6 @@ StudyCoach is not a note-taking app or a simple tracker. It covers the full stud
 - Recharts — performance visualisation
 
 **Infrastructure**
-- Docker — containerised backend
 - Vercel — frontend deployment
 - Alembic migrations for schema versioning
 
@@ -94,15 +93,15 @@ AI flow: user marks topic ready → FastAPI builds a structured prompt → Gemin
 ### Backend
 
 ```bash
-git clone https://github.com/viveksaraswat123/StudyCoach-AI-
-cd StudyCoach-AI-
+git clone https://github.com/viveksaraswat123/StudyCoach-AI
+cd StudyCoach-AI/study-platform-backend
 
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Create `.env` in the root:
+Copy `.env.example` to `.env` and fill in your values:
 
 ```env
 DATABASE_URL=postgresql://username:password@localhost/study_db
@@ -112,7 +111,7 @@ GOOGLE_API_KEY=your_gemini_api_key
 
 ```bash
 alembic upgrade head      # run migrations
-uvicorn app.main:app --reload
+uvicorn main:app --reload
 ```
 
 - API: `http://127.0.0.1:8000`
@@ -128,6 +127,13 @@ npm run dev
 
 Frontend: `http://localhost:5173`
 
+### Tests
+
+```bash
+cd study-platform-backend
+pytest
+```
+
 ---
 
 ## Roadmap
@@ -140,7 +146,6 @@ Frontend: `http://localhost:5173`
 - [x] Performance charts and analytics dashboard
 - [x] Kanban task board
 - [x] Gamification (XP, streaks, badges)
-- [x] Docker deployment
 - [ ] Voice-based answer input (Web Speech API)
 - [ ] Hindi / Hinglish language support
 - [ ] Adaptive difficulty based on past performance

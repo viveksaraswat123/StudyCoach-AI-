@@ -30,19 +30,16 @@ export default function Register() {
         password: formData.password,
       });
 
-      // FIX 2: Guard against missing token — if backend doesn't return a token
-      // on register, accessing data.access_token would silently store "undefined"
+      // Guard against a missing token, since data.access_token would otherwise store "undefined"
       if (data.access_token) {
         localStorage.setItem("token", data.access_token);
       }
 
-      // FIX 3: Clear loading state before navigating to prevent stale state
-      // if the user navigates back
+      // Clear loading state before navigating, prevents stale state if the user navigates back
       setStatus({ loading: false, error: null });
       navigate("/dashboard");
     } catch (err) {
-      // FIX 4: Normalize error detail — FastAPI can return detail as a string
-      // or as an array of validation error objects (same pattern as Login fix)
+      // FastAPI can return detail as a string or as an array of validation error objects
       const detail = err.response?.data?.detail;
       let errorMessage = "Registration failed. Try a different email.";
       if (typeof detail === "string") {
@@ -79,10 +76,6 @@ export default function Register() {
               <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white text-xs font-bold">SC</span>
               </div>
-              {/* FIX 5: Wrapped logo text in a span so it inherits the Link's
-                  font styles correctly and doesn't render as a bare text node
-                  next to a flex child — bare text nodes in flex containers can
-                  cause inconsistent vertical alignment across browsers */}
               <span className="text-white text-sm font-bold">StudyCoach</span>
             </div>
           </Link>
@@ -102,8 +95,6 @@ export default function Register() {
                 exit={{ opacity: 0, y: -10 }}
                 className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-center gap-3 text-red-400 text-sm overflow-hidden"
               >
-                {/* FIX 6: Added flex-shrink-0 on icon and min-w-0 + break-words
-                    on text to prevent long error messages from overflowing */}
                 <AlertCircle size={16} className="flex-shrink-0" />
                 <span className="min-w-0 break-words">{status.error}</span>
               </motion.div>
@@ -121,8 +112,6 @@ export default function Register() {
               type="email"
               placeholder="Work or student email"
               value={formData.email}
-              // FIX 7: Added value props to all inputs to make them controlled,
-              // preventing stale values if state is reset externally
               className="w-full bg-neutral-900 border border-neutral-800 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-white/5 focus:border-neutral-600 transition-all"
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
@@ -160,7 +149,6 @@ export default function Register() {
             />
           </div>
 
-          {/* FIX 8: Added type="submit" explicitly and disabled cursor style */}
           <button
             type="submit"
             disabled={status.loading}
@@ -176,7 +164,6 @@ export default function Register() {
           </button>
         </form>
 
-        {/* FIX 9: Removed unused UserPlus import (was imported but never rendered) */}
         <p className="mt-8 text-center text-neutral-500 text-sm font-medium">
           Already a member?{" "}
           <Link

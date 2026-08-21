@@ -27,15 +27,13 @@ export default function Login() {
         },
       });
       localStorage.setItem("token", data.access_token);
-      // FIX 1: Clear loading state before navigating, prevents stale state
-      // if the user navigates back
+      // Clear loading state before navigating, prevents stale state if the user navigates back
       setStatus({ loading: false, error: null });
       navigate("/dashboard");
     } catch (err) {
       console.error("Login error:", err.response);
 
-      // FIX 2: Normalize error detail — FastAPI can return detail as a string
-      // or as an array of validation error objects
+      // FastAPI can return detail as a string or as an array of validation error objects
       const detail = err.response?.data?.detail;
       let errorMessage = "Invalid credentials. Please try again.";
       if (typeof detail === "string") {
@@ -73,7 +71,6 @@ export default function Login() {
               <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white text-xs font-bold">SC</span>
               </div>
-              {/* FIX 3: "text-s" is not a valid Tailwind class, replaced with "text-sm" */}
               <span className="text-white text-sm font-bold">StudyCoach</span>
             </div>
           </Link>
@@ -97,8 +94,6 @@ export default function Login() {
                 className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-3 text-red-400 text-sm overflow-hidden"
               >
                 <AlertCircle size={16} className="flex-shrink-0" />
-                {/* FIX 4: Added flex-shrink-0 on icon and min-w-0 on text to prevent
-                    long error messages from overflowing the container */}
                 <span className="min-w-0 break-words">{status.error}</span>
               </motion.div>
             )}
@@ -115,8 +110,6 @@ export default function Login() {
                 type="email"
                 placeholder="Email address"
                 value={formData.email}
-                // FIX 5: Added value prop to make input controlled, preventing
-                // stale values after programmatic state changes
                 className="w-full bg-neutral-900 border border-neutral-800 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-white/10 focus:border-neutral-700 transition-all"
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
@@ -136,7 +129,6 @@ export default function Login() {
                 type="password"
                 placeholder="Password"
                 value={formData.password}
-                // FIX 5: Added value prop to make input controlled
                 className="w-full bg-neutral-900 border border-neutral-800 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-white/10 focus:border-neutral-700 transition-all"
                 onChange={(e) =>
                   setFormData({ ...formData, password: e.target.value })
@@ -145,9 +137,6 @@ export default function Login() {
             </div>
           </div>
 
-          {/* FIX 6: Added type="submit" explicitly to avoid ambiguity in some
-              browsers where button type defaults to "submit" only inside forms —
-              being explicit is safer and more semantically correct */}
           <button
             type="submit"
             disabled={status.loading}
